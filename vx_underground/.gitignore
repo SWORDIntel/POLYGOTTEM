@@ -1,0 +1,20 @@
+# Compiled binaries
+polyglot_embed
+polyglot_extract
+*.o
+*.exe
+
+# Test files
+test_image.gif
+infected_meme.gif
+extracted_payload.bin
+*.bin
+
+# Build artifacts
+*~
+core
+core.*
+
+# OS files
+.DS_Store
+Thumbs.db
