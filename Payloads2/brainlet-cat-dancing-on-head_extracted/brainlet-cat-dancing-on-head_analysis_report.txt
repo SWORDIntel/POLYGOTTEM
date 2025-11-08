@@ -1,0 +1,12 @@
+Analysis Report for brainlet-cat-dancing-on-head.gif
+==================================================
+
+File Information:
+  Name: brainlet-cat-dancing-on-head.gif
+  Size: 358817 bytes
+  MD5: 6d11c0e2319986496b9d663432ea2df7
+
+Structure Analysis:
+  Container Format: 
+  Is Polyglot: False
+No polyglot structure detected or no hidden content found.
