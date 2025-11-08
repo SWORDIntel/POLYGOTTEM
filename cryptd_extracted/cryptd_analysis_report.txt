@@ -1,0 +1,12 @@
+Analysis Report for cryptd
+==================================================
+
+File Information:
+  Name: cryptd
+  Size: 122364 bytes
+  MD5: fbf6bb336f808d1adf037599a08ba8e0
+
+Structure Analysis:
+  Container Format: 
+  Is Polyglot: False
+No polyglot structure detected or no hidden content found.
