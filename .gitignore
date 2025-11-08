@@ -20,6 +20,7 @@ audio_video_poly
 # Test output
 test_output/
 test_payloads/
+test_formats/
 fuzzed/
 fuzz_corpus/
 corpus/
