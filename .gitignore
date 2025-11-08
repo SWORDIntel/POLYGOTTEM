@@ -1,0 +1,56 @@
+# Compiled binaries
+*.o
+*.out
+*.exe
+pdf_exploit_polyglot
+pdf_scanner
+pdf_fuzzer
+pdf_exploit_gen
+neural_steg
+png_audio_steg
+wav_exe_poly
+audio_video_poly
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+*.a
+
+# Test output
+test_output/
+fuzzed/
+fuzz_corpus/
+corpus/
+test_fuzz/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# PyTorch/ML models
+*.pth
+*.pt
+*.onnx
+openvino_models/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
