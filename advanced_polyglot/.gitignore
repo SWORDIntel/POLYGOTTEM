@@ -1,0 +1,13 @@
+# Build artifacts
+polyglot_advanced
+*.o
+*~
+core
+
+# Test files
+test_image.gif
+test_payload.sh
+test_output.gif
+extracted_payload.sh
+demo_stego.gif
+demo_extracted.sh

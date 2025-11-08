@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GIF+HTML Polyglot Demo</title>
+</head>
+<body>
+  <h1>🎭 GIF+HTML Polyglot Demonstration</h1>
+  <p>This file is simultaneously:</p>
+  <ul>
+    <li>✅ A valid GIF image</li>
+    <li>✅ A valid HTML page</li>
+  </ul>
+  <script>
+    console.log('Polyglot JavaScript executed!');
+    alert('This GIF just executed JavaScript! 🚨');
+    
+    // Example malicious payload (DEMO ONLY):
+    // document.cookie → Cookie theft
+    // fetch('/api/data') → Data exfiltration
+    // window.location → Redirect
+  </script>
+  <p><strong>Attack Vector:</strong></p>
+  <ol>
+    <li>Upload as "harmless GIF image"</li>
+    <li>Filter sees GIF magic bytes → ✅ Allowed</li>
+    <li>Direct access executes HTML/JS → 💥 XSS</li>
+  </ol>
+</body>
+</html>
