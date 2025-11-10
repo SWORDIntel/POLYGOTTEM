@@ -3,7 +3,8 @@ Originally inspired by a trove of polyglot files from TeamTNT and KEYPLUG and ge
 
 ## Overview
 
-This repository contains analysis and proof-of-concept implementations of polyglot image steganography techniques used by APT TeamTNT cryptomining campaigns (2020-2024). The research focuses on understanding how malicious payloads can be embedded in valid image files and automatically executed.
+This repository contains analysis and proof-of-concept implementations of polyglot image steganography techniques used by APT TeamTNT cryptomining campaigns (2020-2024) and APT-41's KEYPLUG plus a SIGNIFICANT amount of my own researdhch. 
+THe main focus is auto executing polyglots in a wide variety of formats and "how many valid file types can i create" and apparently the answer is 8 beating the previous world record by 3.
 
 ## Repository Structure
 
