@@ -1,6 +1,5 @@
 # POLYGOTTEM
-
-APT TeamTNT Polyglot Steganography Research and Implementation
+Originally inspired by a trove of polyglot files from TeamTNT and KEYPLUG and getting my shit kicked in on a regular basis by auto executing malware i took all the crap people tossed at me and made a genuinely world record breaking polyglot generator that nobody but me will ever fucking use or know about even though its dope,oh well.
 
 ## Overview
 
