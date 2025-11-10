@@ -72,19 +72,98 @@ chmod +x output.bin
 
 ### Polyglot Structure
 
-- **Valid Images:** GIF, JPEG, PNG files remain fully viewable
+- **Valid Images:** GIF, JPEG, PNG, WebP, TIFF, BMP files remain fully viewable
+- **Audio Formats:** MP3, FLAC, OGG Vorbis, WAV with embedded exploits
+- **Video Formats:** MP4, H.264/H.265, WMF with malicious payloads
 - **Hidden Payloads:** XOR-encrypted data appended after EOF markers
 - **Encryption:** Multi-byte XOR (TeamTNT keys: 9e, d3, a5, 9e0a61200d, 410d200d)
-- **Portability:** Pure C, no external dependencies
+- **Portability:** Pure C and Python implementations
+
+### CVE Exploits Implemented (20 Total)
+
+**PRIORITY 1 - Critical/Recent (3 CVEs):**
+- CVE-2023-4863 (libwebp) - Heap overflow in Huffman decoder (CRITICAL - ACTIVELY EXPLOITED!)
+- CVE-2024-10573 (mpg123) - Frankenstein stream heap overflow
+- CVE-2023-52356 (libtiff) - Heap overflow in TIFFReadRGBATileExt
+
+**PRIORITY 2 - High-Value Legacy (6 CVEs):**
+- CVE-2017-8373 (libmad) - MP3 Layer III heap overflow
+- CVE-2006-0006 (Windows Media Player) - BMP heap overflow
+- CVE-2020-22219 (FLAC) - Encoder buffer overflow
+- CVE-2020-0499 (FLAC) - Decoder heap OOB read
+- CVE-2008-1083 (Windows GDI) - EMF/WMF heap overflow
+- CVE-2005-4560 (WMF) - SETABORTPROC code execution
+
+**PRIORITY 3 - Audio/Video (6 CVEs):**
+- CVE-2017-6827 (audiofile) - WAV MSADPCM heap overflow
+- CVE-2018-5146 (libvorbis) - OGG Vorbis OOB write
+- CVE-2022-22675 (AppleAVD) - iOS/macOS video accelerator overflow
+- CVE-2021-0561 (FLAC) - Encoder OOB write
+- CVE-2017-11126 (mpg123) - Layer III global buffer overflow
+- CVE-2021-40426 (libsox) - SPHERE file heap overflow
+
+**EXISTING (5 CVEs):**
+- CVE-2015-8540 (libpng) - Buffer overflow in chunk name
+- CVE-2019-7317 (libpng) - Use-after-free
+- CVE-2018-14498 (libjpeg) - Heap buffer over-read
+- CVE-2019-15133 (giflib) - Division by zero
+- CVE-2016-3977 (giflib) - Heap buffer overflow
 
 ### Auto-Execution Methods
 
 1. **.desktop File Association** - XDG Desktop Entry exploitation
-2. **Image Viewer CVE Exploits** - 5 CVEs implemented (libpng, libjpeg, giflib)
+2. **Image Viewer CVE Exploits** - 20 CVEs implemented across multiple libraries
 3. **Social Engineering Scripts** - User-initiated extraction
 4. **Archive Auto-Extractors** - Self-extracting archives
 
-See `docs/AUTO_EXECUTION_ANALYSIS.md` for complete details.
+See `docs/AUTO_EXECUTION_ANALYSIS.md` and `CVE_RESEARCH_BUFFER_OVERFLOW.md` for complete details.
+
+### New Tools
+
+**exploit_header_generator.py** - Generate individual CVE exploits
+```bash
+# Generate WebP exploit (CRITICAL!)
+python3 tools/exploit_header_generator.py CVE-2023-4863 exploit.webp
+
+# Generate MP3 exploit
+python3 tools/exploit_header_generator.py CVE-2024-10573 exploit.mp3
+
+# Generate with shellcode (DANGEROUS!)
+python3 tools/exploit_header_generator.py CVE-2023-52356 exploit.tiff -p exec_sh
+```
+
+**multi_cve_polyglot.py** - Combine multiple CVE exploits into polyglots
+```bash
+# Generate image polyglot (6 formats)
+python3 tools/multi_cve_polyglot.py image polyglot_image.gif
+
+# Generate audio polyglot (4 formats)
+python3 tools/multi_cve_polyglot.py audio polyglot_audio.mp3
+
+# Generate MEGA polyglot (12+ formats, ALL CVEs!)
+python3 tools/multi_cve_polyglot.py mega polyglot_mega.dat
+
+# Custom polyglot with specific CVEs
+python3 tools/multi_cve_polyglot.py custom custom.bin --cves CVE-2023-4863 CVE-2024-10573
+```
+
+**Test Suite** - Automated testing of all CVE implementations
+```bash
+# Run all tests
+./tests/test_all_cves.sh
+
+# Run tests and clean up
+./tests/test_all_cves.sh --clean
+```
+
+**YARA Detection Rules** - Detect generated exploits
+```bash
+# Scan directory for exploits
+yara -r detection/cve_exploits.yar /path/to/scan/
+
+# Scan with verbose output
+yara -s -r detection/cve_exploits.yar /path/to/scan/
+```
 
 ## Attribution
 
