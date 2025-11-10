@@ -26,21 +26,59 @@ try:
 except ImportError:
     TUI = None
 
+# Import Intel acceleration
+try:
+    from intel_acceleration import get_accelerator
+    ACCEL_AVAILABLE = True
+except ImportError:
+    ACCEL_AVAILABLE = False
+    get_accelerator = None
+
 
 class MultiCVEPolyglot:
     """Generates polyglot files combining multiple CVE exploits"""
 
-    def __init__(self, tui=None):
-        self.generator = ExploitHeaderGenerator()
+    def __init__(self, tui=None, use_acceleration=True):
+        """
+        Initialize multi-CVE polyglot generator
+
+        Args:
+            tui: TUI helper instance
+            use_acceleration: Enable Intel NPU/GPU acceleration
+        """
+        self.generator = ExploitHeaderGenerator(use_acceleration=use_acceleration)
         self.tui = tui
+        self.accelerator = None
         self.xor_keys = {
             'teamtnt_1': b'\x9e\x0a\x61\x20\x0d',
             'teamtnt_2': b'\xd3',
             'teamtnt_3': b'\xa5',
         }
 
+        # Initialize accelerator for XOR operations
+        if use_acceleration and ACCEL_AVAILABLE:
+            try:
+                self.accelerator = get_accelerator(verbose=False)
+                if self.accelerator and self.accelerator.npu_available and tui:
+                    tui.success("Intel NPU acceleration enabled for XOR encryption")
+                elif self.accelerator and self.accelerator.gpu_available and tui:
+                    tui.success("Intel Arc GPU acceleration enabled for XOR encryption")
+            except Exception:
+                pass  # Silently fall back to CPU
+
     def xor_encrypt(self, data, key):
-        """XOR encrypt data with repeating key"""
+        """
+        XOR encrypt data with repeating key
+        Uses Intel NPU/GPU acceleration if available
+        """
+        # Use hardware-accelerated XOR if available
+        if self.accelerator:
+            try:
+                return self.accelerator.xor_encrypt_accelerated(data, key)
+            except Exception:
+                pass  # Fall through to CPU implementation
+
+        # CPU fallback
         encrypted = bytearray()
         key_len = len(key)
 
@@ -430,15 +468,30 @@ Only test on systems you own or have authorization to test!
     parser.add_argument('--list-presets',
                        action='store_true',
                        help='List available polyglot presets')
+    parser.add_argument('--no-accel', action='store_true',
+                       help='Disable Intel NPU/GPU hardware acceleration')
+    parser.add_argument('--benchmark', action='store_true',
+                       help='Run hardware acceleration benchmark')
 
     args = parser.parse_args()
+
+    # Hardware acceleration benchmark
+    if args.benchmark:
+        if ACCEL_AVAILABLE:
+            accel = get_accelerator(verbose=True)
+            print()
+            accel.print_benchmark_results(size_mb=10.0)
+            print()
+        else:
+            print("[!] Hardware acceleration not available (missing dependencies)")
+        return 0
 
     # Initialize TUI
     tui = None
     if TUI is not None and sys.stdout.isatty():
         tui = TUI()
 
-    polyglot = MultiCVEPolyglot(tui=tui)
+    polyglot = MultiCVEPolyglot(tui=tui, use_acceleration=not args.no_accel)
 
     # List presets if requested
     if args.list_presets:
