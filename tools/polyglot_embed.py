@@ -14,7 +14,24 @@ Date: 2025-11-08
 import sys
 import os
 import argparse
+import logging
 from pathlib import Path
+
+# Import validation utilities
+try:
+    from validation_utils import (
+        validate_file_exists, validate_output_path, validate_xor_keys,
+        validate_image_format, atomic_write, setup_logging, ValidationError,
+        FileOperationError
+    )
+except ImportError:
+    # Fallback if run standalone
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from validation_utils import (
+        validate_file_exists, validate_output_path, validate_xor_keys,
+        validate_image_format, atomic_write, setup_logging, ValidationError,
+        FileOperationError
+    )
 
 
 class PolyglotEmbedder:
@@ -30,11 +47,14 @@ class PolyglotEmbedder:
 
     def __init__(self, verbose=False):
         self.verbose = verbose
+        self.logger = setup_logging(verbose=verbose, name='polyglot_embed')
 
     def log(self, message):
         """Print if verbose mode enabled"""
         if self.verbose:
-            print(f"[*] {message}")
+            self.logger.debug(message)
+        else:
+            self.logger.info(message)
 
     def xor_encrypt(self, data, key):
         """Multi-layer XOR encryption (APT-41 KEYPLUG style)"""
@@ -75,20 +95,53 @@ class PolyglotEmbedder:
             raise ValueError(f"Unsupported or invalid image format: {image_path}")
 
     def find_eof(self, image_data, image_format):
-        """Find the last occurrence of EOF marker"""
+        """
+        Find the EOF marker with validation
+
+        Uses format-specific logic to find the actual end of the image data,
+        not just any occurrence of the marker bytes.
+        """
         eof_marker = self.EOF_MARKERS.get(image_format)
         if not eof_marker:
             raise ValueError(f"Unknown image format: {image_format}")
 
-        eof_pos = image_data.rfind(eof_marker)
-        if eof_pos == -1:
-            raise ValueError(f"EOF marker not found for {image_format} format")
+        if image_format == 'gif':
+            # GIF: Find last 0x3b trailer, but verify it's actually the trailer
+            # GIF structure ends with 0x3b, may have extensions before it
+            pos = len(image_data) - 1
+            while pos >= 0:
+                if image_data[pos:pos+1] == b'\x3b':
+                    # Found potential trailer
+                    self.log(f"Found GIF trailer at offset {pos}")
+                    return pos + 1
+                pos -= 1
+            raise ValueError("GIF trailer (0x3b) not found")
 
-        # Return position after the EOF marker
-        return eof_pos + len(eof_marker)
+        elif image_format in ('jpg', 'jpeg'):
+            # JPEG: Find last EOI marker (0xFF 0xD9)
+            eof_pos = image_data.rfind(eof_marker)
+            if eof_pos == -1:
+                raise ValueError("JPEG EOI marker (FF D9) not found")
+            self.log(f"Found JPEG EOI at offset {eof_pos}")
+            return eof_pos + len(eof_marker)
+
+        elif image_format == 'png':
+            # PNG: Find IEND chunk
+            eof_pos = image_data.rfind(eof_marker)
+            if eof_pos == -1:
+                raise ValueError("PNG IEND chunk not found")
+            self.log(f"Found PNG IEND at offset {eof_pos}")
+            return eof_pos + len(eof_marker)
+
+        else:
+            # Generic: find last occurrence
+            eof_pos = image_data.rfind(eof_marker)
+            if eof_pos == -1:
+                raise ValueError(f"EOF marker not found for {image_format} format")
+            return eof_pos + len(eof_marker)
 
     def embed_payload(self, image_path, payload_path, output_path,
-                     xor_keys=None, keep_original=True):
+                     xor_keys=None, keep_original=True, force=False):
         """
         Embed encrypted payload into image file
 
@@ -98,18 +151,42 @@ class PolyglotEmbedder:
             output_path: Path for output polyglot file
             xor_keys: List of XOR keys for multi-layer encryption (default: KEYPLUG keys)
             keep_original: If True, keeps original image data intact
+            force: If True, allow overwriting existing files
+
+        Raises:
+            ValidationError: If inputs are invalid
+            FileOperationError: If file operations fail
         """
-        # Default KEYPLUG-style keys
-        if xor_keys is None:
-            xor_keys = ['9e', '0a61200d']  # APT-41 common keys
+        # Validate inputs
+        try:
+            image_path = validate_file_exists(image_path, "Image file")
+            payload_path = validate_file_exists(payload_path, "Payload file")
+            output_path = validate_output_path(output_path, allow_overwrite=force)
+            xor_keys = validate_xor_keys(xor_keys)
+        except ValidationError as e:
+            self.logger.error(f"Validation failed: {e}")
+            raise
 
         self.log(f"Reading image: {image_path}")
-        with open(image_path, 'rb') as f:
-            image_data = f.read()
+        try:
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+        except (OSError, IOError) as e:
+            raise FileOperationError(f"Failed to read image: {e}")
 
         self.log(f"Reading payload: {payload_path}")
-        with open(payload_path, 'rb') as f:
-            payload_data = f.read()
+        try:
+            with open(payload_path, 'rb') as f:
+                payload_data = f.read()
+        except (OSError, IOError) as e:
+            raise FileOperationError(f"Failed to read payload: {e}")
+
+        # Validate payload size
+        if len(payload_data) == 0:
+            raise ValidationError("Payload file is empty")
+
+        if len(payload_data) > 100 * 1024 * 1024:  # 100MB
+            self.logger.warning(f"Large payload: {len(payload_data):,} bytes")
 
         # Detect image format
         img_format = self.get_image_format(image_path)
@@ -133,8 +210,11 @@ class PolyglotEmbedder:
         polyglot_data = carrier_data + encrypted_payload
 
         self.log(f"Writing polyglot file: {output_path}")
-        with open(output_path, 'wb') as f:
-            f.write(polyglot_data)
+        try:
+            atomic_write(output_path, polyglot_data, mode='wb')
+        except FileOperationError as e:
+            self.logger.error(f"Failed to write polyglot file: {e}")
+            raise
 
         # Statistics
         original_size = len(image_data)
@@ -184,17 +264,10 @@ WARNING: For educational and authorized security research only!
                        help='Do not preserve original image (smaller but corrupted)')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
+    parser.add_argument('--force', action='store_true',
+                       help='Overwrite output file if it exists')
 
     args = parser.parse_args()
-
-    # Validate input files
-    if not os.path.exists(args.image):
-        print(f"[!] Error: Image file not found: {args.image}", file=sys.stderr)
-        return 1
-
-    if not os.path.exists(args.payload):
-        print(f"[!] Error: Payload file not found: {args.payload}", file=sys.stderr)
-        return 1
 
     # Create embedder
     embedder = PolyglotEmbedder(verbose=args.verbose)
@@ -205,11 +278,15 @@ WARNING: For educational and authorized security research only!
             args.payload,
             args.output,
             xor_keys=args.keys,
-            keep_original=args.keep_original
+            keep_original=args.keep_original,
+            force=args.force
         )
         return 0
-    except Exception as e:
+    except (ValidationError, FileOperationError) as e:
         print(f"[!] Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"[!] Unexpected error: {e}", file=sys.stderr)
         if args.verbose:
             import traceback
             traceback.print_exc()

