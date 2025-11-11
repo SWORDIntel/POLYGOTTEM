@@ -33,12 +33,31 @@ from file_browser import FileBrowser
 from cascade_optimizer import CascadeOptimizer
 from command_executor import CommandExecutor
 
+# Import new enhancements
+try:
+    from validation_utils import (
+        validate_file_exists, validate_output_path, ValidationError,
+        FileOperationError, ProgressIndicator, setup_logging
+    )
+    from config import get_config
+    ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    ENHANCEMENTS_AVAILABLE = False
+    get_config = None
+    ValidationError = Exception
+    FileOperationError = Exception
+
 
 class EnhancedPolyglotOrchestrator:
     """Enhanced orchestrator with polished workflow"""
 
-    def __init__(self):
-        """Initialize enhanced orchestrator"""
+    def __init__(self, config_file: Optional[str] = None):
+        """
+        Initialize enhanced orchestrator
+
+        Args:
+            config_file: Optional path to configuration file
+        """
         self.tui = TUI()
         self.menu = InteractiveMenu(self.tui)
         self.engine = AutoExecutionEngine(self.tui)
@@ -46,18 +65,114 @@ class EnhancedPolyglotOrchestrator:
         self.optimizer = CascadeOptimizer(self.tui, use_acceleration=True)
         self.cmd_executor = CommandExecutor(self.tui)
 
+        # Load configuration if available
+        self.config = None
+        if ENHANCEMENTS_AVAILABLE and get_config:
+            try:
+                self.config = get_config(config_file)
+                self.tui.success("Configuration loaded successfully")
+            except Exception as e:
+                self.tui.warning(f"Could not load configuration: {e}")
+                self.tui.info("Using default settings")
+
+    def show_configuration_menu(self):
+        """Show and manage configuration settings"""
+        self.tui.header("Configuration Settings")
+        print()
+
+        if not ENHANCEMENTS_AVAILABLE or not self.config:
+            self.tui.warning("Configuration system not available")
+            self.tui.info("Enhancements may not be installed properly")
+            return
+
+        # Show current configuration
+        self.tui.section("Current Configuration")
+        self.tui.key_value("XOR Keys", ', '.join(self.config.get_default_xor_keys()), 25)
+        self.tui.key_value("Output Directory", self.config.get_output_dir(), 25)
+        self.tui.key_value("Auto-create Dirs", str(self.config.should_create_directories()), 25)
+        self.tui.key_value("Auto-overwrite", str(self.config.should_overwrite()), 25)
+        self.tui.key_value("Log Level", self.config.get_log_level(), 25)
+        self.tui.key_value("Use Acceleration", str(self.config.use_hardware_acceleration()), 25)
+        self.tui.key_value("Validate Payloads", str(self.config.validate_payloads()), 25)
+        print()
+
+        # Configuration options
+        config_options = [
+            {
+                'label': '✏️ Edit Configuration',
+                'description': f'Edit {self.config.config_file}',
+                'value': 'edit'
+            },
+            {
+                'label': '🔄 Reload Configuration',
+                'description': 'Reload from file',
+                'value': 'reload'
+            },
+            {
+                'label': '📄 Create Default Config',
+                'description': 'Create/reset to defaults',
+                'value': 'create'
+            },
+            {
+                'label': '↩️ Back',
+                'description': 'Return to main menu',
+                'value': 'back'
+            },
+        ]
+
+        choice_idx = self.menu.single_select(
+            "Configuration Actions",
+            config_options
+        )
+
+        if choice_idx is None:
+            return
+
+        action = config_options[choice_idx]['value']
+
+        if action == 'edit':
+            self.tui.info(f"Edit configuration file: {self.config.config_file}")
+            self.tui.info("Use your preferred text editor to modify settings")
+            input("\nPress Enter when done editing...")
+        elif action == 'reload':
+            try:
+                self.config = get_config()
+                self.tui.success("Configuration reloaded")
+            except Exception as e:
+                self.tui.error(f"Failed to reload: {e}")
+        elif action == 'create':
+            try:
+                self.config.create_default_config()
+                self.tui.success("Default configuration created")
+            except Exception as e:
+                self.tui.error(f"Failed to create config: {e}")
+
     def run_interactive(self):
         """Run polished interactive workflow"""
         self.tui.banner("POLYGOTTEM v2.0", "Enhanced Interactive Polyglot Generator")
+
+        # Show enhancements status
+        if ENHANCEMENTS_AVAILABLE:
+            self.tui.success("✅ Production enhancements active")
+        else:
+            self.tui.warning("⚠️ Running in basic mode (enhancements not available)")
 
         self.tui.info("🎯 Polished workflow with AI-powered optimization")
         self.tui.info("📁 No more typing file paths - use the file browser!")
         self.tui.info("🤖 Intel NPU/GPU accelerated cascade optimization")
         self.tui.info("💻 OS-specific command execution support")
+        if ENHANCEMENTS_AVAILABLE:
+            self.tui.info("🛡️ Input validation, atomic writes, progress indicators")
         print()
 
+        # Offer configuration menu
+        if ENHANCEMENTS_AVAILABLE and self.config:
+            if self.menu.confirm("View/edit configuration before starting?", default=False):
+                self.show_configuration_menu()
+                print()
+
         # Show welcome and confirm
-        if not self.menu.confirm("Ready to begin?", default=True):
+        if not self.menu.confirm("Ready to begin polyglot generation?", default=True):
             return
 
         # ===== STEP 1: SELECT CARRIER FILE =====
@@ -392,9 +507,15 @@ class EnhancedPolyglotOrchestrator:
         return [method_options[i]['value'] for i in selected_indices]
 
     def _configure_encryption(self) -> Dict[str, Any]:
-        """Step 6: Configure encryption (enhanced)"""
+        """Step 6: Configure encryption with config defaults (enhanced)"""
         self.tui.header("STEP 6: Encryption Configuration")
         print()
+
+        # Load defaults from config if available
+        default_keys = []
+        if self.config:
+            default_keys = self.config.get_default_xor_keys()
+            self.tui.info(f"Default keys from config: {', '.join(default_keys)}")
 
         if not self.menu.confirm("Apply XOR encryption?", default=True):
             return {'enabled': False}
@@ -404,12 +525,13 @@ class EnhancedPolyglotOrchestrator:
             {
                 'label': '0x9e (TeamTNT Signature #1)',
                 'description': 'Single-byte XOR - Common in malware',
-                'selected': True,
+                'selected': '9e' in default_keys,
                 'value': '9e'
             },
             {
                 'label': '0xd3 (Alternative Single-byte)',
                 'description': 'Single-byte XOR - Less common',
+                'selected': 'd3' in default_keys,
                 'value': 'd3'
             },
             {
@@ -571,12 +693,18 @@ class EnhancedPolyglotOrchestrator:
                           payload_source: Dict[str, Any],
                           cve_selections: List[int],
                           encryption_config: Dict[str, Any]) -> Optional[Path]:
-        """Step 9: Generate polyglot (enhanced)"""
+        """Step 9: Generate polyglot with validation and progress (enhanced)"""
         self.tui.header("STEP 9: Generating Polyglot")
         print()
 
         # Get output filename
         default_name = f"polyglot_{carrier_file.stem}_enhanced{carrier_file.suffix}"
+
+        # Use config default output directory if available
+        if self.config:
+            default_dir = Path(self.config.get_output_dir())
+            default_name = str(default_dir / default_name)
+
         output_file = self.menu.prompt_input(
             "Output filename",
             default=default_name
@@ -584,8 +712,37 @@ class EnhancedPolyglotOrchestrator:
 
         output_path = Path(output_file)
 
+        # Validate output path with enhancements
+        if ENHANCEMENTS_AVAILABLE:
+            try:
+                # Check if file exists and prompt for confirmation
+                if output_path.exists():
+                    overwrite = self.config.should_overwrite() if self.config else False
+                    if not overwrite:
+                        if not self.menu.confirm(f"File {output_path} exists. Overwrite?", default=False):
+                            self.tui.warning("Generation cancelled")
+                            return None
+
+                # Validate output path
+                validate_output_path(
+                    output_path,
+                    allow_overwrite=True,
+                    create_parents=self.config.should_create_directories() if self.config else True
+                )
+                self.tui.success("Output path validated")
+            except (ValidationError, FileOperationError) as e:
+                self.tui.error(f"Validation failed: {e}")
+                return None
+
         try:
             self.tui.info("Generating enhanced polyglot...")
+
+            # Show progress if available
+            if ENHANCEMENTS_AVAILABLE:
+                # Estimate total work (for progress bar)
+                total_steps = len(cve_selections) + 2  # CVEs + embed + finalize
+                progress = ProgressIndicator(total_steps, "Polyglot Generation")
+                progress.update(0, force=True)
 
             # Simulate generation with progress
             import time
@@ -691,12 +848,20 @@ class EnhancedPolyglotOrchestrator:
 
 
 def main():
-    """Main entry point"""
+    """Main entry point with enhanced error handling"""
     parser = argparse.ArgumentParser(
-        description="POLYGOTTEM Enhanced Orchestrator",
+        description="POLYGOTTEM Enhanced Orchestrator v2.0",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-✨ ENHANCED FEATURES:
+✨ ENHANCED FEATURES (v2.0):
+
+🛡️ Production Enhancements:
+  - Input validation with detailed error messages
+  - Atomic file writes (no corruption on failure)
+  - Progress indicators for large operations
+  - Configuration file support (~/.polygottem/config.ini)
+  - Comprehensive logging with multiple levels
+  - Graceful dependency handling
 
 📁 File Browser:
   - No more typing paths!
@@ -733,12 +898,69 @@ Examples:
 
     parser.add_argument('--interactive', '-i', action='store_true', default=True,
                        help='Run in interactive mode (default)')
+    parser.add_argument('--config', type=str, metavar='FILE',
+                       help='Path to configuration file (default: ~/.polygottem/config.ini)')
+    parser.add_argument('--create-config', action='store_true',
+                       help='Create default configuration file and exit')
+    parser.add_argument('--show-config', action='store_true',
+                       help='Show current configuration and exit')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                       help='Enable verbose logging')
 
     args = parser.parse_args()
 
-    orchestrator = EnhancedPolyglotOrchestrator()
-    orchestrator.run_interactive()
+    # Handle config-only operations
+    if args.create_config:
+        if ENHANCEMENTS_AVAILABLE:
+            try:
+                config = get_config(args.config)
+                config.create_default_config()
+                return 0
+            except Exception as e:
+                print(f"[!] Error creating config: {e}", file=sys.stderr)
+                return 1
+        else:
+            print("[!] Configuration system not available", file=sys.stderr)
+            print("[*] Install enhancements: validation_utils.py, config.py", file=sys.stderr)
+            return 1
+
+    if args.show_config:
+        if ENHANCEMENTS_AVAILABLE:
+            try:
+                config = get_config(args.config)
+                print(f"\nConfiguration file: {config.config_file}")
+                print("\nCurrent settings:")
+                for section in config.config.sections():
+                    print(f"\n[{section}]")
+                    for key, value in config.config.items(section):
+                        print(f"  {key} = {value}")
+                return 0
+            except Exception as e:
+                print(f"[!] Error reading config: {e}", file=sys.stderr)
+                return 1
+        else:
+            print("[!] Configuration system not available", file=sys.stderr)
+            return 1
+
+    # Setup logging if verbose
+    if args.verbose and ENHANCEMENTS_AVAILABLE:
+        setup_logging(verbose=True)
+
+    # Run interactive orchestrator with error handling
+    try:
+        orchestrator = EnhancedPolyglotOrchestrator(config_file=args.config)
+        orchestrator.run_interactive()
+        return 0
+    except KeyboardInterrupt:
+        print("\n\n[!] Interrupted by user")
+        return 130
+    except Exception as e:
+        print(f"\n[!] Fatal error: {e}", file=sys.stderr)
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
