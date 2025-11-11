@@ -15,7 +15,22 @@ import sys
 import os
 import argparse
 import subprocess
+import logging
 from pathlib import Path
+
+# Import validation utilities
+try:
+    from validation_utils import (
+        validate_file_exists, validate_output_path, validate_xor_keys,
+        atomic_write, setup_logging, ValidationError, FileOperationError
+    )
+except ImportError:
+    # Fallback if run standalone
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from validation_utils import (
+        validate_file_exists, validate_output_path, validate_xor_keys,
+        atomic_write, setup_logging, ValidationError, FileOperationError
+    )
 
 
 class PolyglotExtractor:
@@ -31,11 +46,14 @@ class PolyglotExtractor:
 
     def __init__(self, verbose=False):
         self.verbose = verbose
+        self.logger = setup_logging(verbose=verbose, name='polyglot_extract')
 
     def log(self, message):
         """Print if verbose mode enabled"""
         if self.verbose:
-            print(f"[*] {message}")
+            self.logger.debug(message)
+        else:
+            self.logger.info(message)
 
     def xor_decrypt(self, data, key):
         """XOR decryption (same as encryption)"""
@@ -89,7 +107,7 @@ class PolyglotExtractor:
 
         return eof_pos + len(eof_marker)
 
-    def extract_payload(self, image_path, output_path=None, xor_keys=None):
+    def extract_payload(self, image_path, output_path=None, xor_keys=None, force=False):
         """
         Extract encrypted payload from polyglot image
 
@@ -97,17 +115,29 @@ class PolyglotExtractor:
             image_path: Path to polyglot image
             output_path: Where to save extracted payload (default: auto-generate)
             xor_keys: List of XOR keys for decryption
+            force: Allow overwriting existing output files
 
         Returns:
-            Path to extracted payload file
+            Tuple of (path_to_extracted_payload, payload_type)
+
+        Raises:
+            ValidationError: If inputs are invalid
+            FileOperationError: If file operations fail
         """
-        # Default KEYPLUG keys
-        if xor_keys is None:
-            xor_keys = ['9e', '0a61200d']
+        # Validate inputs
+        try:
+            image_path = validate_file_exists(image_path, "Polyglot image")
+            xor_keys = validate_xor_keys(xor_keys)
+        except ValidationError as e:
+            self.logger.error(f"Validation failed: {e}")
+            raise
 
         self.log(f"Reading polyglot file: {image_path}")
-        with open(image_path, 'rb') as f:
-            data = f.read()
+        try:
+            with open(image_path, 'rb') as f:
+                data = f.read()
+        except (OSError, IOError) as e:
+            raise FileOperationError(f"Failed to read polyglot file: {e}")
 
         # Detect format
         img_format = self.detect_format(image_path)
@@ -135,14 +165,31 @@ class PolyglotExtractor:
         self.log(f"Decrypting with {len(xor_keys)} layer(s)")
         decrypted = self.multi_layer_decrypt(encrypted_payload, xor_keys)
 
+        # Validate decrypted payload
+        if not self._validate_decrypted_payload(decrypted):
+            self.logger.warning(
+                "Decrypted payload validation failed. "
+                "It may be corrupted or encrypted with different keys."
+            )
+
         # Auto-generate output path
         if output_path is None:
             base = Path(image_path).stem
             output_path = f"{base}_extracted_payload.bin"
 
+        # Validate output path
+        try:
+            output_path = validate_output_path(output_path, allow_overwrite=force)
+        except ValidationError as e:
+            self.logger.error(f"Invalid output path: {e}")
+            raise
+
         self.log(f"Writing decrypted payload: {output_path}")
-        with open(output_path, 'wb') as f:
-            f.write(decrypted)
+        try:
+            atomic_write(output_path, decrypted, mode='wb')
+        except FileOperationError as e:
+            self.logger.error(f"Failed to write payload: {e}")
+            raise
 
         # Detect payload type
         payload_type = self.detect_payload_type(decrypted)
@@ -156,6 +203,52 @@ class PolyglotExtractor:
         print(f"    Detected type: {payload_type}")
 
         return output_path, payload_type
+
+    def _validate_decrypted_payload(self, data: bytes) -> bool:
+        """
+        Validate that decrypted payload appears legitimate
+
+        Args:
+            data: Decrypted payload bytes
+
+        Returns:
+            True if payload appears valid
+        """
+        if len(data) == 0:
+            return False
+
+        # Check for known file signatures
+        signatures = [
+            b'\x7fELF',           # ELF binary
+            b'MZ',                # PE/EXE binary
+            b'#!/',               # Shebang script
+            b'PK\x03\x04',        # ZIP archive
+            b'\x89PNG',           # PNG image
+            b'GIF8',              # GIF image
+            b'\xff\xd8\xff',      # JPEG image
+            b'<?xml',             # XML file
+            b'<html',             # HTML file
+            b'{',                 # JSON/JavaScript (maybe)
+        ]
+
+        # Check if starts with known signature
+        for sig in signatures:
+            if data.startswith(sig):
+                return True
+
+        # Check if mostly printable (likely text/script)
+        sample_size = min(len(data), 1024)
+        printable_count = sum(1 for b in data[:sample_size] if 32 <= b <= 126 or b in (9, 10, 13))
+        if printable_count / sample_size > 0.7:
+            return True
+
+        # Check for high entropy (might be compressed/encrypted)
+        # Very low entropy suggests decryption failed (all zeros, repeated bytes)
+        if len(set(data[:1024])) < 10:
+            return False
+
+        # If we get here, it's probably valid but unknown format
+        return True
 
     def detect_payload_type(self, data):
         """Detect what kind of payload this is"""
@@ -210,12 +303,10 @@ Never execute payloads from untrusted sources!
                        help='Try common KEYPLUG keys automatically')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
+    parser.add_argument('--force', action='store_true',
+                       help='Overwrite output file if it exists')
 
     args = parser.parse_args()
-
-    if not os.path.exists(args.image):
-        print(f"[!] Error: File not found: {args.image}", file=sys.stderr)
-        return 1
 
     extractor = PolyglotExtractor(verbose=args.verbose)
 
@@ -256,10 +347,14 @@ Never execute payloads from untrusted sources!
             output_path, payload_type = extractor.extract_payload(
                 args.image,
                 args.output,
-                xor_keys=args.keys
+                xor_keys=args.keys,
+                force=args.force
             )
-        except Exception as e:
+        except (ValidationError, FileOperationError) as e:
             print(f"[!] Error: {e}", file=sys.stderr)
+            return 1
+        except Exception as e:
+            print(f"[!] Unexpected error: {e}", file=sys.stderr)
             if args.verbose:
                 import traceback
                 traceback.print_exc()

