@@ -427,6 +427,9 @@ Polyglot Types:
   custom       Custom CVE selection
 
 Examples:
+  # Interactive mode with multi-choice menus (NEW!)
+  %(prog)s --interactive
+
   # Generate image polyglot
   %(prog)s image polyglot_image.gif
 
@@ -445,6 +448,7 @@ Examples:
 Payload Options:
   -p, --payload    Payload type (poc_marker, nop_sled, exec_sh)
   --cves           Comma-separated list of CVE IDs (for custom type)
+  -i, --interactive  Launch interactive multi-choice TUI menu (NEW!)
 
 WARNING: These polyglots can trigger multiple vulnerabilities!
 Only test on systems you own or have authorization to test!
@@ -468,12 +472,32 @@ Only test on systems you own or have authorization to test!
     parser.add_argument('--list-presets',
                        action='store_true',
                        help='List available polyglot presets')
+    parser.add_argument('-i', '--interactive',
+                       action='store_true',
+                       help='Launch interactive multi-choice TUI menu (NEW!)')
     parser.add_argument('--no-accel', action='store_true',
                        help='Disable Intel NPU/GPU hardware acceleration')
     parser.add_argument('--benchmark', action='store_true',
                        help='Run hardware acceleration benchmark')
 
     args = parser.parse_args()
+
+    # Interactive mode - launch orchestrator
+    if args.interactive:
+        try:
+            from polyglot_orchestrator import PolyglotOrchestrator
+            orchestrator = PolyglotOrchestrator()
+            orchestrator.run_interactive()
+            return 0
+        except ImportError as e:
+            print(f"[!] Error: Interactive mode requires polyglot_orchestrator.py: {e}")
+            print("[!] Make sure all TUI components are installed")
+            return 1
+        except Exception as e:
+            print(f"[!] Error in interactive mode: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
 
     # Hardware acceleration benchmark
     if args.benchmark:
