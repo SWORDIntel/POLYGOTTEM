@@ -1,27 +1,37 @@
 # Buffer Overflow CVE Research for POLYGOTTEM Enhancement
 
-**Research Date:** 2025-11-10
+**Research Date:** 2025-11-12 (Updated with 2025 macOS overflows)
 **Researcher:** SWORDIntel (via Claude)
 **Purpose:** Expand POLYGOTTEM polyglot tool with additional buffer overflow CVEs in media libraries
 
 ## Executive Summary
 
-This document provides comprehensive research on buffer overflow CVEs across MP3, image, video, and audio libraries to enhance the POLYGOTTEM polyglot file generation tool. The research identified **25+ high-value CVEs** that can be leveraged for creating enhanced polyglot files targeting various media parsing libraries.
+This document provides comprehensive research on buffer overflow CVEs across MP3, image, video, and audio libraries to enhance the POLYGOTTEM polyglot file generation tool. The research identified **30+ high-value CVEs** including newly discovered 2025 macOS overflows that can be leveraged for creating enhanced polyglot files targeting various media parsing libraries.
 
 ### Current Implementation
-POLYGOTTEM currently implements **5 CVEs**:
+POLYGOTTEM now implements **25 CVEs** (5 original + 20 new):
 - CVE-2015-8540 (libpng) - Buffer overflow in png_check_chunk_name
 - CVE-2019-7317 (libpng) - Use-after-free in image handling
 - CVE-2018-14498 (libjpeg) - Heap buffer over-read
 - CVE-2019-15133 (giflib) - Division by zero / out-of-bounds read
 - CVE-2016-3977 (giflib) - Heap buffer overflow
+- 20 additional CVEs across MP3, image, video, and audio formats
 
-### Recommended Additions
-This research recommends adding **20+ additional CVEs** across:
+### 2025 macOS Overflows (NEW)
+This update adds **5 critical macOS CVEs from 2025**:
+- **CVE-2025-43300 (CRITICAL):** Apple ImageIO DNG/TIFF zero-click RCE (actively exploited!)
+- **CVE-2025-24228 (HIGH):** macOS Kernel buffer overflow (CVSS 7.8)
+- **CVE-2025-24153 (HIGH):** SMB buffer overflow with kernel escalation
+- **CVE-2025-24156 (MEDIUM-HIGH):** Xsan integer overflow privilege escalation
+- **CVE-2025-24154 (HIGH):** WebContentFilter out-of-bounds write
+
+### Recommended Additions Summary
+This research covers **25+ additional CVEs** across:
 - **MP3 Audio:** 3 CVEs (libmad, mpg123)
 - **Image Formats:** 7 CVEs (libtiff, libwebp, BMP/WMF)
 - **Video Codecs:** 5 CVEs (FFmpeg, H.264/H.265, libtheora)
 - **Audio Formats:** 8 CVEs (FLAC, WAV/RIFF, OGG Vorbis)
+- **2025 macOS Overflows:** 5 CVEs (ImageIO, Kernel, SMB, Xsan, WebContentFilter)
 
 ---
 
@@ -1038,6 +1048,196 @@ rule POLYGOTTEM_MultiFormat_Polyglot {
 
 ---
 
+## 10. 2025 macOS Overflows (NEW)
+
+### CVE-2025-43300 - Apple ImageIO DNG/TIFF JPEG Lossless OOB Write
+**Severity:** CRITICAL (Actively Exploited Zero-Day)
+**Target:** Apple ImageIO framework (iOS 18.x, iPadOS 18.x, macOS Sequoia/Sonoma/Ventura)
+**Type:** Out-of-bounds write
+**Disclosure:** August 2025
+**Status:** ⚠️ ACTIVELY EXPLOITED IN THE WILD
+
+**Technical Details:**
+- Out-of-bounds write in CDNGLosslessJpegUnpacker (RawCamera component)
+- Vulnerability stems from mismatch between TIFF metadata and JPEG SOF3 stream
+- SamplesPerPixel=2 (TIFF DNG tag) but NumComponents=1 (SOF3 stream)
+- Loop termination computed against components (=1) but writes 16-bit × 2 samples per pixel
+- Double writes per row causing out-of-bounds memory corruption
+- Zero-click exploitation via iMessage (no user interaction required)
+- Triggers during automatic image preview generation
+
+**Exploitation Potential:**
+- Remote Code Execution (RCE) with user privileges
+- Zero-click attack vector (iMessage, email preview, etc.)
+- Used in extremely sophisticated targeted attacks
+- Memory corruption can alter control flow for arbitrary code execution
+
+**Attack Vector:**
+```
+Malicious DNG File → iMessage → ImageIO Automatic Preview → OOB Write → RCE
+```
+
+**Patched Versions:**
+- iOS/iPadOS: 18.6.2, 17.7.10 (older models)
+- macOS Sequoia: 15.6.1
+- macOS Sonoma: 14.7.8
+- macOS Ventura: 13.7.8
+
+**References:**
+- https://blog.quarkslab.com/patch-analysis-of-Apple-iOS-CVE-2025-43300.html
+- https://support.apple.com/en-us/HT214100
+- https://nvd.nist.gov/vuln/detail/CVE-2025-43300
+
+---
+
+### CVE-2025-24228 - macOS Kernel Buffer Overflow
+**Severity:** HIGH (CVSS 7.8)
+**Target:** macOS Kernel (Ventura 13.0-13.7.4, Sonoma 14.0-14.7.4, Sequoia 15.0-15.3)
+**Type:** Buffer overflow (CWE-125 Out-of-bounds Read)
+**Disclosure:** March 2025
+
+**Technical Details:**
+- Buffer overflow in macOS kernel allowing arbitrary code execution with kernel privileges
+- An application may execute arbitrary code with kernel privileges
+- Requires local access and user interaction to trigger
+- Addressed through improved memory handling
+
+**Exploitation Potential:**
+- Kernel-level code execution
+- Full system compromise
+- Privilege escalation from user to kernel
+- Can bypass security protections (SIP, etc.)
+
+**Attack Vector:**
+```
+Malicious App → Kernel Buffer Overflow → Kernel Code Execution → Full System Control
+```
+
+**Patched Versions:**
+- macOS Ventura: 13.7.5
+- macOS Sonoma: 14.7.5
+- macOS Sequoia: 15.4
+
+**References:**
+- https://cvefeed.io/vuln/detail/CVE-2025-24228
+- https://support.apple.com/en-us/122373
+
+---
+
+### CVE-2025-24153 - macOS SMB Buffer Overflow
+**Severity:** HIGH
+**Target:** macOS SMB implementation (fixed in Sequoia 15.3, Sonoma 14.7.3)
+**Type:** Buffer overflow
+**Disclosure:** January 2025
+
+**Technical Details:**
+- Buffer overflow in Server Message Block (SMB) implementation
+- App with root privileges may execute arbitrary code with kernel privileges
+- Privilege escalation from root to kernel level
+- Addressed with improved memory handling
+
+**Exploitation Potential:**
+- Privilege escalation to kernel from root user
+- Network-based exploitation via malicious SMB server
+- Can be chained with other vulnerabilities
+- Kernel memory corruption leading to system compromise
+
+**Attack Vector:**
+```
+Malicious SMB Server → SMB Client Buffer Overflow → Kernel Code Execution
+```
+
+**Patched Versions:**
+- macOS Sequoia: 15.3
+- macOS Sonoma: 14.7.3
+
+**References:**
+- https://support.apple.com/en-us/122068
+
+---
+
+### CVE-2025-24156 - macOS Xsan Integer Overflow
+**Severity:** MEDIUM-HIGH
+**Target:** macOS Xsan filesystem driver (fixed in Sequoia 15.3)
+**Type:** Integer overflow
+**Disclosure:** January 2025
+
+**Technical Details:**
+- Integer overflow in Xsan (Apple's clustered filesystem) driver
+- Enables privilege elevation in applications
+- Addressed through improved input validation
+- Incorrect buffer allocation due to integer overflow
+- Can lead to heap overflow when accessing filesystem data
+
+**Exploitation Potential:**
+- Privilege escalation via filesystem operations
+- Local exploitation requiring Xsan volume mount
+- Heap corruption leading to code execution
+- Can bypass filesystem access controls
+
+**Attack Vector:**
+```
+Crafted Xsan Volume → Integer Overflow → Heap Corruption → Privilege Escalation
+```
+
+**Patched Versions:**
+- macOS Sequoia: 15.3
+
+**References:**
+- https://support.apple.com/en-us/122068
+
+---
+
+### CVE-2025-24154 - macOS WebContentFilter Out-of-Bounds Write
+**Severity:** HIGH
+**Target:** macOS WebContentFilter framework (fixed in Sequoia 15.3)
+**Type:** Out-of-bounds write
+**Disclosure:** January 2025
+
+**Technical Details:**
+- Out-of-bounds write in WebContentFilter framework
+- Causes system termination or kernel memory corruption
+- Addressed with improved input validation
+- Triggered by malformed content filter configuration
+
+**Exploitation Potential:**
+- Kernel memory corruption
+- System crash (denial of service)
+- Potential code execution with kernel privileges
+- Can affect parental controls and content filtering
+
+**Attack Vector:**
+```
+Malicious Content Filter Config → OOB Write → Kernel Memory Corruption → System Crash/RCE
+```
+
+**Patched Versions:**
+- macOS Sequoia: 15.3
+
+**References:**
+- https://support.apple.com/en-us/122068
+
+---
+
+### 2025 macOS CVEs Summary
+
+| CVE | Severity | Type | Target | Status |
+|-----|----------|------|--------|--------|
+| CVE-2025-43300 | CRITICAL | OOB Write | ImageIO (DNG/TIFF) | ⚠️ Actively Exploited |
+| CVE-2025-24228 | HIGH | Buffer Overflow | macOS Kernel | Patched March 2025 |
+| CVE-2025-24153 | HIGH | Buffer Overflow | SMB | Patched Jan 2025 |
+| CVE-2025-24156 | MEDIUM-HIGH | Integer Overflow | Xsan FS | Patched Jan 2025 |
+| CVE-2025-24154 | HIGH | OOB Write | WebContentFilter | Patched Jan 2025 |
+
+**Implementation Priority:**
+1. **CVE-2025-43300** - CRITICAL zero-day, actively exploited, zero-click RCE
+2. **CVE-2025-24228** - Kernel-level buffer overflow, high impact
+3. **CVE-2025-24153** - SMB overflow with kernel escalation
+4. **CVE-2025-24154** - WebContentFilter kernel memory corruption
+5. **CVE-2025-24156** - Xsan integer overflow for privilege escalation
+
+---
+
 ## Defensive Recommendations
 
 Organizations should:
@@ -1092,30 +1292,43 @@ Organizations should:
 
 ## Conclusion
 
-This research has identified **25+ buffer overflow CVEs** across media libraries that can significantly enhance POLYGOTTEM's capabilities. The recommended implementation priority focuses on:
+This research has identified **30+ buffer overflow CVEs** across media libraries and macOS system components that significantly enhance POLYGOTTEM's capabilities. The recommended implementation priority focuses on:
 
-1. **Critical, actively exploited CVEs** (CVE-2023-4863, CVE-2022-22675)
-2. **Recent high-impact vulnerabilities** (CVE-2024-10573, CVE-2023-52356)
-3. **Legacy but widely deployed** (CVE-2017-8373, CVE-2006-0006)
-4. **Polyglot-friendly formats** (WebP, TIFF, MP3, FLAC)
+1. **Critical, actively exploited zero-days** (CVE-2025-43300, CVE-2023-4863)
+2. **2025 macOS kernel-level vulnerabilities** (CVE-2025-24228, CVE-2025-24153, CVE-2025-24154)
+3. **Recent high-impact vulnerabilities** (CVE-2024-10573, CVE-2023-52356)
+4. **Legacy but widely deployed** (CVE-2017-8373, CVE-2006-0006, CVE-2022-22675)
+5. **Polyglot-friendly formats** (WebP, TIFF, DNG, MP3, FLAC)
 
-Implementing these CVEs will:
-- Expand polyglot capabilities from 8-way to 12+ way combinations
+Implementing these CVEs provides:
+- Expansion from 5 CVEs to **25 CVEs** (500% increase)
+- **5 new 2025 macOS overflows** including zero-click RCE
+- Coverage of iOS/iPadOS/macOS latest versions
+- Polyglot capabilities expanded to 12+ way combinations
 - Target modern browsers, media players, and mobile devices
-- Increase APT-style attack simulation realism
-- Enhance security research and defensive testing
+- Kernel-level exploitation techniques
+- Zero-click attack vectors (iMessage, email preview)
+- APT-style attack simulation with latest TTPs
+- Enhanced security research and defensive testing
 
-**Next Steps:**
-1. Extend `exploit_header_generator.py` with new CVE methods
-2. Create multi-format polyglot test cases
-3. Implement YARA detection rules
-4. Document exploitation techniques
-5. Build automated testing framework
+**Implementation Status:**
+- ✅ Extended `exploit_header_generator.py` with 5 new 2025 macOS CVE methods
+- ✅ Added CVE-2025-43300 (ImageIO DNG/TIFF OOB write - actively exploited)
+- ✅ Added CVE-2025-24228 (macOS Kernel buffer overflow)
+- ✅ Added CVE-2025-24153 (SMB buffer overflow)
+- ✅ Added CVE-2025-24156 (Xsan integer overflow)
+- ✅ Added CVE-2025-24154 (WebContentFilter OOB write)
+- ✅ Updated documentation with technical details
+- ⏳ YARA detection rules for 2025 CVEs (future work)
+- ⏳ Multi-format polyglot test cases (future work)
+
+**Security Impact:**
+The CVE-2025-43300 addition is particularly significant as it represents an actively exploited zero-day with zero-click RCE capabilities targeting Apple's ImageIO framework. Organizations should immediately update to patched versions and implement detection mechanisms.
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2025-11-10
+**Document Version:** 2.0
+**Last Updated:** 2025-11-12
 **Maintained by:** SWORDIntel Security Research
 **License:** Research and educational purposes only
 
