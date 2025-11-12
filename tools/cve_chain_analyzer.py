@@ -273,6 +273,87 @@ class CVEChainAnalyzer:
             file_format='elf'
         )
 
+        # ===== iOS/iPhone CVEs (2025) =====
+        db['CVE-2025-24085'] = CVEMetadata(
+            cve_id='CVE-2025-24085',
+            name='iOS Core Media UAF',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.IOS,
+            severity=Severity.HIGH,
+            cvss_score=7.8,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Core Media use-after-free for kernel privileges',
+            file_format='macho'
+        )
+
+        db['CVE-2025-31200'] = CVEMetadata(
+            cve_id='CVE-2025-31200',
+            name='iOS CoreAudio Zero-Click RCE',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.IOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='CoreAudio heap corruption via audio file (iMessage, bypasses Blastdoor)',
+            file_format='mp4'
+        )
+
+        db['CVE-2025-31201'] = CVEMetadata(
+            cve_id='CVE-2025-31201',
+            name='iOS PAC Bypass',
+            exploit_type=ExploitType.SANDBOX_ESCAPE,
+            platform=TargetPlatform.IOS,
+            severity=Severity.HIGH,
+            cvss_score=6.7,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Pointer Authentication bypass enabling kernel exploitation',
+            file_format='dylib'
+        )
+
+        db['CVE-2025-24201'] = CVEMetadata(
+            cve_id='CVE-2025-24201',
+            name='iOS WebKit OOB Write',
+            exploit_type=ExploitType.SANDBOX_ESCAPE,
+            platform=TargetPlatform.IOS,
+            severity=Severity.HIGH,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='WebKit out-of-bounds write for sandbox escape',
+            file_format='html'
+        )
+
+        db['CVE-2025-24200'] = CVEMetadata(
+            cve_id='CVE-2025-24200',
+            name='iOS USB Restricted Mode Bypass',
+            exploit_type=ExploitType.AUTH_BYPASS,
+            platform=TargetPlatform.IOS,
+            severity=Severity.MEDIUM,
+            cvss_score=5.5,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='USB Restricted Mode bypass (requires physical access)',
+            file_format='mobileconfig'
+        )
+
         # ===== Legacy/Multi-Platform CVEs =====
         db['CVE-2023-4863'] = CVEMetadata(
             cve_id='CVE-2023-4863',

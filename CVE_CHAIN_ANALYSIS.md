@@ -112,6 +112,10 @@ CVE-2023-4863 (libwebp) → CVE-2025-60724 (GDI+) → CVE-2025-62215 (Kernel)
 - CVE-2025-47981 (SPNEGO) - Zero-click, unauthenticated
 - CVE-2025-60724 (GDI+) - Metafile/image
 
+**iOS/iPhone:**
+- CVE-2025-31200 (CoreAudio) - Zero-click, actively exploited, bypasses Blastdoor
+- CVE-2025-24201 (WebKit) - Actively exploited, sandbox escape
+
 **Linux/Cross-Platform:**
 - CVE-2023-4863 (libwebp) - Actively exploited, CVSS 10.0
 
@@ -132,6 +136,10 @@ CVE-2023-4863 (libwebp) → CVE-2025-60724 (GDI+) → CVE-2025-62215 (Kernel)
 **Windows:**
 1. CVE-2025-62215 - Kernel race condition (ACTIVELY EXPLOITED)
 2. CVE-2025-21333 - Hyper-V buffer overflow (CVSS 7.8)
+
+**iOS/iPhone:**
+1. CVE-2025-24085 - Core Media UAF (CVSS 7.8, ACTIVELY EXPLOITED)
+2. CVE-2025-31201 - PAC Bypass (enables kernel exploitation)
 
 **Linux:**
 1. CVE-2025-0927 - HFS+ heap overflow (CVSS 7.8)
@@ -327,30 +335,83 @@ Attack Flow:
 
 ---
 
+### Example 4: iOS/iPhone Zero-Click Full Compromise
+
+```
+Chain: CVE-2025-31200 → CVE-2025-24085
+
+Step 1: CVE-2025-31200
+  └─ iOS CoreAudio Zero-Click RCE
+  └─ Type: Remote Code Execution
+  └─ Platform: iOS/iPhone
+  └─ CVSS: 9.8
+  └─ Zero-Click: YES
+  └─ Actively Exploited: YES
+
+Step 2: CVE-2025-24085
+  └─ iOS Core Media UAF
+  └─ Type: Local Privilege Escalation
+  └─ Platform: iOS/iPhone
+  └─ CVSS: 7.8
+  └─ Kernel-Level: YES
+  └─ Actively Exploited: YES
+
+Overall Severity: CRITICAL
+Success Factors:
+  ✓ Zero-click RCE (high success)
+  ✓ Actively exploited in wild (proven)
+  ✓ Kernel-level access achieved
+  ✓ Bypasses Blastdoor security
+```
+
+**Attack Flow:**
+1. Attacker sends malicious AAC audio file via iMessage
+2. CoreAudio heap corruption triggers RCE (bypasses Blastdoor)
+3. Malicious process exploits Core Media use-after-free
+4. Kernel memory corruption leads to privilege escalation
+5. Attacker gains full kernel control (jailbreak-level access)
+
+**Defensive Actions:**
+- Update iOS to 18.4.1+ and iPadOS to 18.4.1+
+- Disable automatic media processing in Messages (Settings → Messages → Low Quality Image Mode)
+- Enable Lockdown Mode for high-risk targets
+- Implement EDR/MDM monitoring for iOS devices
+- Monitor for unusual media file attachments
+- Deploy network filtering for malicious file delivery
+
+---
+
 ## CVE Database Summary
 
-### Total CVEs: 30
+### Total CVEs: 35
 
 #### By Platform:
 - **macOS**: 7 CVEs (5 from 2025)
 - **Windows**: 3 CVEs (all from 2025)
 - **Linux**: 2 CVEs (all from 2025)
+- **iOS/iPhone**: 5 CVEs (all from 2025)
 - **Cross-Platform**: 18 CVEs (legacy)
 
 #### By Type:
-- **RCE (Remote Code Execution)**: 12 CVEs
-- **LPE (Local Privilege Escalation)**: 15 CVEs
-- **Memory Corruption**: 3 CVEs
+- **RCE (Remote Code Execution)**: 14 CVEs
+- **LPE (Local Privilege Escalation)**: 17 CVEs
+- **Sandbox Escape**: 1 CVE
+- **PAC Bypass**: 1 CVE
+- **USB Bypass**: 1 CVE
+- **Memory Corruption**: 1 CVE
 
 #### By Severity:
-- **CRITICAL (CVSS 9.0-10.0)**: 7 CVEs
-- **HIGH (CVSS 7.0-8.9)**: 20 CVEs
+- **CRITICAL (CVSS 9.0-10.0)**: 9 CVEs
+- **HIGH (CVSS 7.0-8.9)**: 23 CVEs
 - **MEDIUM (CVSS 4.0-6.9)**: 3 CVEs
 
 #### Actively Exploited (In the Wild):
 - CVE-2025-43300 (macOS ImageIO) - ZERO-DAY
 - CVE-2025-62215 (Windows Kernel)
 - CVE-2025-21333 (Windows Hyper-V)
+- CVE-2025-31200 (iOS CoreAudio) - ZERO-CLICK
+- CVE-2025-24085 (iOS Core Media) - KERNEL PE
+- CVE-2025-24201 (iOS WebKit) - SANDBOX ESCAPE
 - CVE-2023-4863 (libwebp)
 - CVE-2022-22675 (AppleAVD)
 
