@@ -594,6 +594,8 @@ class CVEChainAnalyzer:
                 defenses.append("Update Linux kernel to patched version")
             elif platform == TargetPlatform.MACOS:
                 defenses.append("Update macOS to latest security patches")
+            elif platform == TargetPlatform.IOS:
+                defenses.append("Update iOS to 18.4.1+ and iPadOS to 18.4.1+")
 
         # General defenses
         if any(m.zero_click for m in chain_meta):
@@ -608,18 +610,38 @@ class CVEChainAnalyzer:
             defenses.append("Sandbox media processing applications")
             defenses.append("Implement strict file validation at network boundaries")
 
+        # iOS-specific defenses
+        if TargetPlatform.IOS in platforms:
+            if any(m.zero_click for m in chain_meta):
+                defenses.append("Enable Lockdown Mode for high-risk targets")
+            if any('blastdoor' in m.description.lower() or 'coreaudio' in m.description.lower() for m in chain_meta):
+                defenses.append("Disable automatic media processing in Messages")
+            if any('pac' in m.description.lower() or 'webkit' in m.description.lower() for m in chain_meta):
+                defenses.append("Keep iOS updated to latest version for PAC improvements")
+            defenses.append("Implement MDM monitoring for iOS/iPadOS devices")
+
         defenses.append("Monitor for abnormal process execution patterns")
         defenses.append("Deploy EDR with memory corruption detection")
 
         return defenses
 
     def print_chain_analysis(self, cve_chain: List[str]):
-        """Pretty print chain analysis"""
+        """Pretty print chain analysis with enhanced iOS visualization"""
         analysis = self.analyze_chain(cve_chain)
 
         if "error" in analysis:
             print(f"❌ Error: {analysis['error']}")
             return
+
+        # Get platform icons
+        platform_icons = {
+            'ios': '📱',
+            'macos': '🍏',
+            'windows': '🪟',
+            'linux': '🐧',
+            'android': '🤖',
+            'cross-platform': '🌐'
+        }
 
         print("\n" + "="*80)
         print("CVE CHAIN ANALYSIS")
@@ -641,10 +663,13 @@ class CVEChainAnalyzer:
         print("-"*80)
 
         for step in analysis['attack_flow']:
+            platform_lower = step['platform'].lower()
+            platform_icon = platform_icons.get(platform_lower, '💻')
+
             print(f"\nStep {step['step']}: {step['cve']}")
             print(f"  └─ {step['name']}")
             print(f"  └─ Type: {step['type']}")
-            print(f"  └─ Platform: {step['platform']}")
+            print(f"  └─ Platform: {platform_icon} {step['platform']}")
             print(f"  └─ CVSS: {step['cvss']}")
             if step['zero_click']:
                 print(f"  └─ 🚨 Zero-Click")
@@ -652,6 +677,17 @@ class CVEChainAnalyzer:
                 print(f"  └─ 👑 Kernel-Level")
             if step['actively_exploited']:
                 print(f"  └─ ⚠️  Actively Exploited")
+
+            # iOS-specific features
+            if platform_lower == 'ios':
+                cve_meta = self.cve_database.get(step['cve'])
+                if cve_meta:
+                    if 'blastdoor' in cve_meta.description.lower():
+                        print(f"  └─ 🛡️ Bypasses Blastdoor sandbox")
+                    if 'pac' in cve_meta.description.lower():
+                        print(f"  └─ 🔓 Defeats Pointer Authentication (PAC)")
+                    if 'webkit' in cve_meta.name.lower():
+                        print(f"  └─ 🌐 WebKit sandbox escape")
 
         if analysis['success_factors']:
             print("\n" + "-"*80)
@@ -706,6 +742,28 @@ def main():
     print(f"\n✨ Top Privilege Escalation CVEs:\n")
     for i, chain in enumerate(chains[:3], 1):
         print(f"{i}. {' → '.join(chain)}")
+
+    # Example 4: iOS Zero-Click Full Compromise (NEW!)
+    print("\n" + "="*80)
+    print("Example 4: 📱 iOS/iPhone Zero-Click Full Compromise (NEW!)")
+    print("="*80)
+    chains = analyzer.suggest_chains(TargetPlatform.IOS, "full_compromise")
+    print(f"\n✨ Top 3 Recommended Chains for iOS:\n")
+    for i, chain in enumerate(chains[:3], 1):
+        print(f"{i}. {' → '.join(chain)}")
+
+    if chains:
+        print(f"\n📊 Detailed Analysis of Top iOS Chain:")
+        analyzer.print_chain_analysis(chains[0])
+
+    # Example 5: iOS Initial Access (RCE only)
+    print("\n" + "="*80)
+    print("Example 5: 📱 iOS Initial Access (RCE Only)")
+    print("="*80)
+    chains = analyzer.suggest_chains(TargetPlatform.IOS, "initial_access")
+    print(f"\n✨ Top RCE CVEs for iOS:\n")
+    for i, chain in enumerate(chains[:3], 1):
+        print(f"{i}. {chain[0]}")
 
 
 if __name__ == "__main__":
