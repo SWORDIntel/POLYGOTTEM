@@ -27,7 +27,8 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 ## ⚡ Key Features
 
 - ✅ **45 CVE Implementations** - macOS, Windows, Linux, iOS, Android (2025 latest)
-- 🪆 **APT-41 5-Cascading PE** - Unprecedented PNG→ZIP→5×PE structure  
+- 🪆 **APT-41 5-Cascading PE** - Unprecedented PNG→ZIP→5×PE structure
+- 🎯 **Smart Workflows** - 6 preset workflows (Quick, Smart, Full, APT-41, Platform, Custom)
 - 🛡️ **Advanced Defense Evasion** - Anti-VM, corrupted headers, XOR rotation
 - 🔐 **Operational Security** - Timestomping, secure deletion, entropy padding
 - 🧠 **Intelligent Chaining** - Auto-generate exploit chains for full compromise
@@ -73,7 +74,52 @@ chmod +x polygottem.py
 
 # List supported platforms
 ./polygottem.py list platforms
+
+# Launch interactive orchestrator (smart workflows)
+./polygottem.py interactive
 ```
+
+### **🎯 Smart Workflows (Interactive Mode)**
+
+**NEW in v2.0:** Enhanced interactive orchestrator with 6 smart workflow presets:
+
+```bash
+# Launch interactive orchestrator
+./polygottem.py interactive
+
+# Or directly:
+python3 tools/polyglot_orchestrator.py
+```
+
+**Available Workflows:**
+
+1. **⚡ Quick Exploit** - Single CVE → Exploit → OpSec → Validation
+   - Fast single exploit generation with automatic OpSec
+   - Timestomping, entropy padding, validation
+
+2. **🎯 Smart Polyglot** - Platform → Auto-CVE Selection → Polyglot
+   - Auto-selects best CVEs for target platform
+   - Supports APT-41, Image, Audio, MEGA polyglots
+
+3. **🚀 Full Campaign** - Platform → Chain Analysis → Multiple Artifacts
+   - Analyzes attack chains for chosen goal
+   - Generates multi-stage exploit artifacts
+   - Full OpSec applied to all stages
+
+4. **🪆 APT-41 Replication** - 5-Cascading PE with Defense Evasion
+   - Replicates real APT-41 malware structure
+   - PNG→ZIP→5×PE with XOR key rotation
+   - Corrupted headers, anti-VM, matryoshka nesting
+
+5. **📱 Platform Attack Chain** - iOS/Android/Windows Specific
+   - Platform-optimized exploit chains
+   - Zero-click to kernel (iOS: CoreAudio → Kernel UAF)
+   - Complete chain generation with artifacts
+
+6. **🎨 Custom Workflow** - Manual CVE Selection
+   - Full manual control over CVE selection
+   - Custom format and execution methods
+   - Original TUI experience preserved
 
 ### **Polyglot Types**
 
@@ -116,9 +162,14 @@ POLYGOTTEM v2.0 (CHIMERA)
 │  ├─ exploit_header_generator.py   → 45 CVE implementations
 │  ├─ multi_cve_polyglot.py         → 6 polyglot types
 │  ├─ cve_chain_analyzer.py         → Intelligent chaining
-│  ├─ operational_security.py       → Anti-forensics (NEW!)
+│  ├─ operational_security.py       → Anti-forensics (Vault7/Shadow Brokers)
+│  ├─ polyglot_orchestrator.py      → Smart workflows & interactive TUI (ENHANCED!)
+│  │                                   • 6 smart workflow presets
+│  │                                   • Platform-aware auto-CVE selection
+│  │                                   • Integrated OpSec automation
+│  │                                   • Operation tracking & validation
 │  ├─ intel_acceleration.py         → NPU/GPU acceleration
-│  └─ polyglot_orchestrator.py      → Interactive TUI
+│  └─ auto_execution_engine.py      → Multi-vector execution methods
 └─ docs/
    ├─ CVE_CHAIN_ANALYSIS.md         → Chain methodology (650 lines)
    ├─ APT41_ATTACK_CHAINS.md        → Real-world TTPs (3,800 lines)
