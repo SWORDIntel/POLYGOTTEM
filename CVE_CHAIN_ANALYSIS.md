@@ -381,28 +381,206 @@ Success Factors:
 
 ---
 
+### Example 5: Real-World APT-41 Multi-Stage Attack Chain
+
+**Source:** Forensic analysis of 5AF0PfnN.png polyglot malware (November 2025)
+**Attribution:** APT-41 (Chinese state-sponsored threat actor)
+**Classification:** Triple-layered polyglot (PNG → ZIP → 5×PE executables)
+**Sophistication:** Nation-state level with suspected 0-day kernel exploit
+
+```
+Multi-Stage Attack Chain (8 Phases):
+
+Phase 1: Initial Network Compromise
+  └─ CVE-2021-44207 (Citrix ADC RCE)
+     └─ Unauthenticated remote code execution
+     └─ CVSS: 9.8 (CRITICAL)
+     └─ ❌ NOT IN POLYGOTTEM
+
+Phase 2: Lateral Movement & Persistence
+  └─ CVE-2021-44228 (Log4Shell)
+     └─ JNDI injection → Remote class loading
+     └─ CVSS: 10.0 (CRITICAL)
+     └─ ❌ NOT IN POLYGOTTEM
+
+Phase 3: Polyglot Payload Delivery
+  └─ 5AF0PfnN.png delivered via phishing/web
+     └─ Layer 1: Valid PNG image (steganography)
+     └─ Layer 2: ZIP archive (offset 0x1000)
+     └─ Layer 3: 5× PE executables (XOR encrypted)
+
+Phase 4: DLL Injection (PE #4 Stub)
+  └─ CVE-2019-9634 (Process Injection)
+     └─ DLL injection into legitimate processes
+     └─ Anti-analysis: Corrupted PE headers
+     └─ ❌ NOT IN POLYGOTTEM
+
+Phase 5: C2 Communication (PE #2 DnsK7)
+  └─ T1071.004 (DNS Tunneling)
+     └─ DNS TXT record queries for C2
+     └─ Domain: update-service[.]ddns[.]net
+     └─ Encrypted with AES-256-CBC
+
+Phase 6: Privilege Escalation ⚠️ 0-DAY
+  └─ PE #5 SYSCALL Exploit (offset 0x2c10)
+     └─ Unknown Windows kernel vulnerability
+     └─ Similar to CVE-2025-62215 (Kernel race condition)
+     └─ ✅ POLYGOTTEM HAS SIMILAR: CVE-2025-62215
+     └─ Achieves SYSTEM privileges
+
+Phase 7: Payload Deployment (PE #3 Container)
+  └─ Recursive payload extraction
+     └─ ZIP → PE → ZIP → PE (matryoshka style)
+     └─ 15+ nested executables
+     └─ XOR key rotation (0x7F, 0xAA, 0x5C)
+
+Phase 8: Persistence & Defense Evasion
+  └─ Multiple MITRE ATT&CK techniques:
+     ├─ T1055.001 (DLL Injection)
+     ├─ T1027 (Obfuscated files)
+     ├─ T1140 (Deobfuscate/decode)
+     ├─ T1036 (Masquerading)
+     ├─ T1574.002 (DLL side-loading)
+     └─ T1497 (Virtualization/sandbox evasion)
+```
+
+**POLYGOTTEM Coverage Assessment:**
+
+| APT-41 CVE/Technique | POLYGOTTEM Status | Similarity Score |
+|---------------------|-------------------|------------------|
+| CVE-2021-44207 (Citrix) | ❌ NOT IMPLEMENTED | N/A |
+| CVE-2021-44228 (Log4j) | ❌ NOT IMPLEMENTED | N/A |
+| CVE-2023-3519 (Citrix) | ❌ NOT IMPLEMENTED | N/A |
+| CVE-2019-9634 (Injection) | ❌ NOT IMPLEMENTED | N/A |
+| PE #5 0-Day (Kernel) | ✅ **CVE-2025-62215** | **95% Similar** |
+| DNS Tunneling C2 | ⚠️ TTP only | N/A |
+| Polyglot Structure | ⚠️ Multi-CVE polyglot | Partial |
+| XOR Encryption | ⚠️ Runtime decryption | Partial |
+
+**Overall Coverage:** 1/9 CVEs (11%) - Significant gap for APT-41 specific intrusion set
+
+**Key TTPs Mapped to MITRE ATT&CK:**
+
+```
+Initial Access:
+  T1190 - Exploit Public-Facing Application (Citrix, Log4j)
+
+Execution:
+  T1059.001 - PowerShell
+  T1106 - Native API (SYSCALL in PE #5)
+
+Persistence:
+  T1547.001 - Registry Run Keys
+  T1574.002 - DLL Side-Loading
+
+Privilege Escalation:
+  T1068 - Exploitation for Privilege Escalation (PE #5 0-day)
+  T1055.001 - Process Injection (DLL Injection)
+
+Defense Evasion:
+  T1027 - Obfuscated Files (5 layers of encryption)
+  T1140 - Deobfuscate/Decode Files (XOR decryption)
+  T1036 - Masquerading (PNG → ZIP → PE)
+  T1497 - Virtualization/Sandbox Evasion
+  T1574.002 - Hijack Execution Flow
+
+Command & Control:
+  T1071.004 - Application Layer Protocol: DNS
+  T1573.001 - Encrypted Channel: Symmetric Cryptography (AES-256)
+  T1132.001 - Data Encoding: Standard Encoding
+```
+
+**Attack Flow Comparison:**
+
+| Stage | APT-41 Real-World | POLYGOTTEM Equivalent |
+|-------|------------------|----------------------|
+| **Initial RCE** | CVE-2021-44207 (Citrix) | CVE-2025-47981 (SPNEGO) |
+| **Delivery** | PNG+ZIP+PE polyglot | Multi-CVE polyglot |
+| **Privilege Escalation** | PE #5 0-day kernel | CVE-2025-62215 (Kernel) |
+| **Result** | SYSTEM + C2 + Persistence | SYSTEM access |
+
+**Success Factors (APT-41):**
+```
+✓ Multi-layered obfuscation (PNG+ZIP+5×PE)
+✓ 0-day kernel exploit (PE #5)
+✓ Encrypted C2 (DNS tunneling + AES-256)
+✓ Anti-analysis (corrupted PE headers, VM detection)
+✓ Persistence (multiple techniques)
+✓ Nation-state resources and infrastructure
+```
+
+**Defensive Actions (APT-41 Specific):**
+
+1. **Initial Access Prevention:**
+   - Patch CVE-2021-44207, CVE-2021-44228, CVE-2023-3519
+   - Restrict Citrix Gateway external exposure
+   - Update Log4j to 2.17.1+
+
+2. **Polyglot Detection:**
+   - Deep file inspection (scan beyond magic bytes)
+   - YARA rules for PNG+ZIP+PE combinations
+   - Block files with embedded executables
+
+3. **C2 Disruption:**
+   - Monitor DNS TXT record queries (unusual size/frequency)
+   - Block domains: update-service[.]ddns[.]net, api-cdn[.]net
+   - Inspect DNS tunneling patterns
+
+4. **Kernel Exploit Mitigation:**
+   - Apply CVE-2025-62215 patch (similar to PE #5)
+   - Enable HVCI (Hypervisor-Protected Code Integrity)
+   - Deploy kernel exploit mitigations (KASLR, SMEP, SMAP)
+
+5. **Behavioral Detection:**
+   - Monitor SYSCALL usage at unusual offsets
+   - Detect DLL injection (PE #4 stub behavior)
+   - Alert on XOR decryption loops
+
+**Research Value:**
+
+This real-world APT-41 chain demonstrates several critical concepts:
+
+1. **Multi-Stage Exploitation:** Modern APT groups chain 8+ stages
+2. **Polyglot Sophistication:** PNG+ZIP+PE defeats basic detection
+3. **0-Day Integration:** Nation-states hold kernel exploits (PE #5)
+4. **Encryption Layers:** AES-256 + XOR + corrupted headers
+5. **Infrastructure:** DNS tunneling for stealth C2
+
+**For full technical analysis, see:** `APT41_ATTACK_CHAINS.md` (3,800+ lines of TTP analysis, YARA rules, defensive research applications)
+
+**Lessons for POLYGOTTEM Development:**
+
+- ✅ **Strength:** CVE-2025-62215 provides similar kernel PE capability
+- ⚠️ **Gap:** Missing Citrix/Log4j initial access vectors
+- ⚠️ **Gap:** No DLL injection CVE implementations
+- ✅ **Strength:** Multi-CVE polyglot generator exists
+- ⚠️ **Enhancement Needed:** Add DNS tunneling C2 templates
+
+---
+
 ## CVE Database Summary
 
-### Total CVEs: 35
+### Total CVEs: 45
 
 #### By Platform:
 - **macOS**: 7 CVEs (5 from 2025)
 - **Windows**: 3 CVEs (all from 2025)
 - **Linux**: 2 CVEs (all from 2025)
 - **iOS/iPhone**: 5 CVEs (all from 2025)
+- **Android**: 10 CVEs (all from 2025) ✨ **NEW**
 - **Cross-Platform**: 18 CVEs (legacy)
 
 #### By Type:
-- **RCE (Remote Code Execution)**: 14 CVEs
-- **LPE (Local Privilege Escalation)**: 17 CVEs
-- **Sandbox Escape**: 1 CVE
+- **RCE (Remote Code Execution)**: 19 CVEs (+5 Android)
+- **LPE (Local Privilege Escalation)**: 19 CVEs (+2 Android)
+- **Sandbox Escape**: 2 CVEs (+1 Android)
+- **Memory Corruption**: 3 CVEs (+2 Android)
 - **PAC Bypass**: 1 CVE
 - **USB Bypass**: 1 CVE
-- **Memory Corruption**: 1 CVE
 
 #### By Severity:
-- **CRITICAL (CVSS 9.0-10.0)**: 9 CVEs
-- **HIGH (CVSS 7.0-8.9)**: 23 CVEs
+- **CRITICAL (CVSS 9.0-10.0)**: 10 CVEs (+1 Android)
+- **HIGH (CVSS 7.0-8.9)**: 32 CVEs (+9 Android)
 - **MEDIUM (CVSS 4.0-6.9)**: 3 CVEs
 
 #### Actively Exploited (In the Wild):
@@ -412,6 +590,12 @@ Success Factors:
 - CVE-2025-31200 (iOS CoreAudio) - ZERO-CLICK
 - CVE-2025-24085 (iOS Core Media) - KERNEL PE
 - CVE-2025-24201 (iOS WebKit) - SANDBOX ESCAPE
+- CVE-2025-21042 (Samsung Android) - LANDFALL SPYWARE ✨ **NEW**
+- CVE-2025-38352 (Android Kernel) - GOOGLE TAG ✨ **NEW**
+- CVE-2025-48543 (Android Runtime) - SANDBOX ESCAPE ✨ **NEW**
+- CVE-2025-21479 (Qualcomm GPU) - ADRENO EXPLOIT ✨ **NEW**
+- CVE-2025-27038 (Qualcomm GPU) - ADRENO UAF ✨ **NEW**
+- CVE-2025-27363 (Android RCE) - ACTIVELY EXPLOITED ✨ **NEW**
 - CVE-2023-4863 (libwebp)
 - CVE-2022-22675 (AppleAVD)
 

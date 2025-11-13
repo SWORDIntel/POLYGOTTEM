@@ -354,6 +354,167 @@ class CVEChainAnalyzer:
             file_format='mobileconfig'
         )
 
+        # ===== Android CVEs (2025) =====
+        db['CVE-2025-48593'] = CVEMetadata(
+            cve_id='CVE-2025-48593',
+            name='Android System Zero-Click RCE',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.CRITICAL,
+            cvss_score=9.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Buffer overflow in Android System component via network packet (zero-click)',
+            file_format='intent'
+        )
+
+        db['CVE-2025-21042'] = CVEMetadata(
+            cve_id='CVE-2025-21042',
+            name='Samsung Android DNG Image LANDFALL',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='OOB write in libimagecodec.quram.so via DNG image (LANDFALL spyware, WhatsApp)',
+            file_format='dng'
+        )
+
+        db['CVE-2025-21043'] = CVEMetadata(
+            cve_id='CVE-2025-21043',
+            name='Samsung Android OOB Write',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=False,
+            description='Out-of-bounds write in Samsung Android component',
+            file_format='apk'
+        )
+
+        db['CVE-2025-38352'] = CVEMetadata(
+            cve_id='CVE-2025-38352',
+            name='Linux Kernel POSIX Timer Race',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=7.4,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Race condition in kernel POSIX CPU timers (reported by Google TAG)',
+            file_format='elf'
+        )
+
+        db['CVE-2025-48543'] = CVEMetadata(
+            cve_id='CVE-2025-48543',
+            name='Android Runtime UAF Sandbox Escape',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=7.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Use-after-free in Android Runtime (ART) enabling sandbox escape',
+            file_format='dex'
+        )
+
+        db['CVE-2025-21479'] = CVEMetadata(
+            cve_id='CVE-2025-21479',
+            name='Qualcomm Adreno GPU Memory Corruption',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=8.6,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Incorrect authorization in Adreno GPU microcode (commercial spyware)',
+            file_format='spv'
+        )
+
+        db['CVE-2025-27038'] = CVEMetadata(
+            cve_id='CVE-2025-27038',
+            name='Qualcomm Adreno GPU UAF',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=7.5,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Use-after-free in Adreno GPU driver during Chrome rendering (forensic tools)',
+            file_format='html'
+        )
+
+        db['CVE-2025-27363'] = CVEMetadata(
+            cve_id='CVE-2025-27363',
+            name='Android Component RCE',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=8.1,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Remote code execution in Android component',
+            file_format='intent'
+        )
+
+        db['CVE-2025-20708'] = CVEMetadata(
+            cve_id='CVE-2025-20708',
+            name='MediaTek Modem OOB Write',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=8.0,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=False,
+            zero_click=True,
+            description='OOB write in MediaTek modem via rogue base station (remote PE)',
+            file_format='rrc'
+        )
+
+        db['CVE-2025-20672'] = CVEMetadata(
+            cve_id='CVE-2025-20672',
+            name='MediaTek Bluetooth Heap Overflow',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.ANDROID,
+            severity=Severity.HIGH,
+            cvss_score=7.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=False,
+            description='Heap overflow in MediaTek Bluetooth drivers (BT proximity required)',
+            file_format='hci'
+        )
+
         # ===== Legacy/Multi-Platform CVEs =====
         db['CVE-2023-4863'] = CVEMetadata(
             cve_id='CVE-2023-4863',
@@ -596,6 +757,8 @@ class CVEChainAnalyzer:
                 defenses.append("Update macOS to latest security patches")
             elif platform == TargetPlatform.IOS:
                 defenses.append("Update iOS to 18.4.1+ and iPadOS to 18.4.1+")
+            elif platform == TargetPlatform.ANDROID:
+                defenses.append("Update Android to latest security patch level (2025-11-01+)")
 
         # General defenses
         if any(m.zero_click for m in chain_meta):
@@ -619,6 +782,21 @@ class CVEChainAnalyzer:
             if any('pac' in m.description.lower() or 'webkit' in m.description.lower() for m in chain_meta):
                 defenses.append("Keep iOS updated to latest version for PAC improvements")
             defenses.append("Implement MDM monitoring for iOS/iPadOS devices")
+
+        # Android-specific defenses
+        if TargetPlatform.ANDROID in platforms:
+            if any(m.zero_click for m in chain_meta):
+                defenses.append("Enable Android Private Compute Core for secure processing")
+            if any('qualcomm' in m.description.lower() or 'adreno' in m.description.lower() for m in chain_meta):
+                defenses.append("Update Qualcomm GPU drivers and firmware")
+            if any('mediatek' in m.description.lower() for m in chain_meta):
+                defenses.append("Update MediaTek chipset firmware")
+            if any('samsung' in m.description.lower() or 'dng' in m.file_format.lower() for m in chain_meta):
+                defenses.append("Restrict untrusted media file processing")
+            if any(m.kernel_level for m in chain_meta):
+                defenses.append("Enable SELinux enforcing mode and verify integrity")
+            defenses.append("Use Android Enterprise or GrapheneOS for enhanced security")
+            defenses.append("Enable Google Play Protect and app verification")
 
         defenses.append("Monitor for abnormal process execution patterns")
         defenses.append("Deploy EDR with memory corruption detection")
@@ -688,6 +866,23 @@ class CVEChainAnalyzer:
                         print(f"  └─ 🔓 Defeats Pointer Authentication (PAC)")
                     if 'webkit' in cve_meta.name.lower():
                         print(f"  └─ 🌐 WebKit sandbox escape")
+
+            # Android-specific features
+            if platform_lower == 'android':
+                cve_meta = self.cve_database.get(step['cve'])
+                if cve_meta:
+                    if 'qualcomm' in cve_meta.description.lower() or 'adreno' in cve_meta.description.lower():
+                        print(f"  └─ 🎮 Targets Qualcomm Adreno GPU")
+                    if 'mediatek' in cve_meta.description.lower():
+                        print(f"  └─ 📡 Targets MediaTek chipset")
+                    if 'samsung' in cve_meta.description.lower() or 'landfall' in cve_meta.description.lower():
+                        print(f"  └─ 🔓 LANDFALL commercial spyware")
+                    if 'google tag' in cve_meta.description.lower():
+                        print(f"  └─ 🎯 Reported by Google TAG (APT activity)")
+                    if 'forensic' in cve_meta.description.lower():
+                        print(f"  └─ 🔬 Exploited by forensic tools (Cellebrite, etc.)")
+                    if 'rogue base station' in cve_meta.description.lower():
+                        print(f"  └─ 📡 Rogue base station attack vector")
 
         if analysis['success_factors']:
             print("\n" + "-"*80)
@@ -762,6 +957,28 @@ def main():
     print("="*80)
     chains = analyzer.suggest_chains(TargetPlatform.IOS, "initial_access")
     print(f"\n✨ Top RCE CVEs for iOS:\n")
+    for i, chain in enumerate(chains[:3], 1):
+        print(f"{i}. {chain[0]}")
+
+    # Example 6: Android Zero-Click Full Compromise (NEW!)
+    print("\n" + "="*80)
+    print("Example 6: 🤖 Android Zero-Click Full Compromise (NEW!)")
+    print("="*80)
+    chains = analyzer.suggest_chains(TargetPlatform.ANDROID, "full_compromise")
+    print(f"\n✨ Top 3 Recommended Chains for Android:\n")
+    for i, chain in enumerate(chains[:3], 1):
+        print(f"{i}. {' → '.join(chain)}")
+
+    if chains:
+        print(f"\n📊 Detailed Analysis of Top Android Chain:")
+        analyzer.print_chain_analysis(chains[0])
+
+    # Example 7: Android Initial Access (RCE only)
+    print("\n" + "="*80)
+    print("Example 7: 🤖 Android Initial Access (RCE Only)")
+    print("="*80)
+    chains = analyzer.suggest_chains(TargetPlatform.ANDROID, "initial_access")
+    print(f"\n✨ Top RCE CVEs for Android:\n")
     for i, chain in enumerate(chains[:3], 1):
         print(f"{i}. {chain[0]}")
 
