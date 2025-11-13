@@ -27,7 +27,7 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from enum import Enum
 from dataclasses import dataclass
 
-from tools.tui_helper import TUI, Colors, Symbols
+from tui_helper import TUI, Colors, Symbols
 
 
 class ExecutionPlatform(Enum):

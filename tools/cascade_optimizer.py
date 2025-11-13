@@ -47,7 +47,7 @@ except ImportError:
 
         float32 = float
 
-from tools.tui_helper import TUI, Colors
+from tui_helper import TUI, Colors
 
 
 @dataclass

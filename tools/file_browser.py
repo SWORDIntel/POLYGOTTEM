@@ -25,7 +25,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import mimetypes
 
-from tools.tui_helper import TUI, Colors, Symbols
+from tui_helper import TUI, Colors, Symbols
 
 
 class FileBrowser:

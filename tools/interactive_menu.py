@@ -17,7 +17,7 @@ Date: 2025-11-11
 
 import sys
 from typing import List, Dict, Any, Optional, Tuple
-from tools.tui_helper import TUI, Colors, Symbols
+from tui_helper import TUI, Colors, Symbols
 
 
 class InteractiveMenu:
