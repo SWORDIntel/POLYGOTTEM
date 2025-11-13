@@ -25,7 +25,7 @@ import shutil
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
-from tools.tui_helper import TUI, Colors, Symbols
+from tui_helper import TUI, Colors, Symbols
 
 
 @dataclass

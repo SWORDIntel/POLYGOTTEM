@@ -25,7 +25,7 @@ import base64
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from tools.tui_helper import TUI, Colors
+from tui_helper import TUI, Colors
 
 
 class CommandExecutor:
