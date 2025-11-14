@@ -94,18 +94,164 @@ class GeolocationConfig:
 class VPSGeoManager:
     """VPS server and geolocation configuration manager"""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, config_file: Optional[str] = None):
         """
         Initialize VPS manager
 
         Args:
             verbose: Enable verbose logging
+            config_file: Path to server configuration file
         """
         self.verbose = verbose
         self.logger = setup_logging(verbose=verbose, name='vps_manager') if ENHANCEMENTS_AVAILABLE else None
         self.tui = TUI() if TUI else None
         self.menu = InteractiveMenu(self.tui) if ENHANCEMENTS_AVAILABLE else None
         self.servers: List[VPSServer] = []
+
+        # Set config file path
+        if config_file:
+            self.config_file = Path(config_file)
+        else:
+            config_dir = Path.home() / '.polygottem'
+            config_dir.mkdir(exist_ok=True)
+            self.config_file = config_dir / 'vps_servers.json'
+
+        # Auto-load servers if config exists
+        if self.config_file.exists():
+            try:
+                self.load_servers()
+            except Exception as e:
+                if self.verbose:
+                    self.log(f"Could not auto-load servers: {e}", "warning")
+
+    def save_servers(self, output_file: Optional[str] = None) -> str:
+        """
+        Save server configurations to JSON file
+
+        Args:
+            output_file: Path to save file (default: ~/.polygottem/vps_servers.json)
+
+        Returns:
+            Path to saved file
+        """
+        save_path = Path(output_file) if output_file else self.config_file
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Convert servers to dict format
+        servers_data = []
+        for server in self.servers:
+            server_dict = {
+                'hostname': server.hostname,
+                'ip_address': server.ip_address,
+                'ipv6_address': server.ipv6_address,
+                'country_code': server.country_code,
+                'region': server.region,
+                'provider': server.provider.value,
+                'asn': server.asn,
+                'warp_enabled': server.warp_enabled,
+                'bgp_configured': server.bgp_configured
+            }
+            servers_data.append(server_dict)
+
+        # Save to JSON
+        try:
+            with open(save_path, 'w') as f:
+                json.dump({
+                    'version': '2.0',
+                    'servers': servers_data,
+                    'saved_at': self._get_timestamp()
+                }, f, indent=2)
+
+            self.log(f"Saved {len(self.servers)} server(s) to: {save_path}", "success")
+            return str(save_path)
+        except Exception as e:
+            self.log(f"Failed to save servers: {e}", "error")
+            raise
+
+    def load_servers(self, input_file: Optional[str] = None) -> int:
+        """
+        Load server configurations from JSON file
+
+        Args:
+            input_file: Path to config file (default: ~/.polygottem/vps_servers.json)
+
+        Returns:
+            Number of servers loaded
+        """
+        load_path = Path(input_file) if input_file else self.config_file
+
+        if not load_path.exists():
+            raise FileNotFoundError(f"Config file not found: {load_path}")
+
+        try:
+            with open(load_path, 'r') as f:
+                data = json.load(f)
+
+            # Clear existing servers
+            self.servers.clear()
+
+            # Load servers from JSON
+            for server_dict in data.get('servers', []):
+                server = VPSServer(
+                    hostname=server_dict['hostname'],
+                    ip_address=server_dict['ip_address'],
+                    ipv6_address=server_dict.get('ipv6_address'),
+                    country_code=server_dict['country_code'],
+                    region=server_dict['region'],
+                    provider=VPSProvider(server_dict['provider']),
+                    asn=server_dict.get('asn'),
+                    warp_enabled=server_dict.get('warp_enabled', False),
+                    bgp_configured=server_dict.get('bgp_configured', False)
+                )
+                self.servers.append(server)
+
+            self.log(f"Loaded {len(self.servers)} server(s) from: {load_path}", "success")
+            return len(self.servers)
+        except Exception as e:
+            self.log(f"Failed to load servers: {e}", "error")
+            raise
+
+    def validate_ip_address(self, ip_str: str, ip_type: str = "ipv4") -> bool:
+        """
+        Validate IP address format
+
+        Args:
+            ip_str: IP address string to validate
+            ip_type: Type of IP (ipv4 or ipv6)
+
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            if ip_type == "ipv4":
+                ipaddress.IPv4Address(ip_str)
+            elif ip_type == "ipv6" or ip_type == "subnet":
+                # Handle subnet notation
+                if '/' in ip_str:
+                    ipaddress.IPv6Network(ip_str, strict=False)
+                else:
+                    ipaddress.IPv6Address(ip_str)
+            return True
+        except ValueError:
+            return False
+
+    def check_duplicate_server(self, hostname: str, ip_address: str) -> Optional[VPSServer]:
+        """
+        Check if server with same hostname or IP already exists
+
+        Args:
+            hostname: Server hostname to check
+            ip_address: Server IP to check
+
+        Returns:
+            Existing server if found, None otherwise
+        """
+        for server in self.servers:
+            if server.hostname == hostname:
+                return server
+            if server.ip_address == ip_address:
+                return server
+        return None
 
     def log(self, message: str, level: str = "info"):
         """Log message with TUI or standard output"""
