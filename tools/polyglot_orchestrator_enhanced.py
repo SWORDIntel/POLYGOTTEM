@@ -946,6 +946,11 @@ class EnhancedPolyglotOrchestrator:
         self.tui.info("Generate WireGuard/WARP configs, WHOIS objects, and BGP settings")
         print()
 
+        # Show auto-loaded servers if any
+        if self.vps_manager.servers:
+            self.tui.success(f"Auto-loaded {len(self.vps_manager.servers)} server(s) from config")
+            print()
+
         # VPS management menu
         while True:
             vps_options = [
@@ -956,7 +961,7 @@ class EnhancedPolyglotOrchestrator:
                 },
                 {
                     'label': '📋 List Servers',
-                    'description': 'View all configured VPS servers',
+                    'description': f'View all configured VPS servers ({len(self.vps_manager.servers)})',
                     'value': 'list'
                 },
                 {
@@ -968,6 +973,16 @@ class EnhancedPolyglotOrchestrator:
                     'label': '✅ Verify Geolocation',
                     'description': 'Generate verification scripts',
                     'value': 'verify'
+                },
+                {
+                    'label': '💾 Save Configuration',
+                    'description': 'Save servers to config file',
+                    'value': 'save'
+                },
+                {
+                    'label': '📂 Load Configuration',
+                    'description': 'Load servers from config file',
+                    'value': 'load'
                 },
                 {
                     'label': '📖 View Guide',
@@ -997,17 +1012,56 @@ class EnhancedPolyglotOrchestrator:
                 self._export_vps_configs()
             elif action == 'verify':
                 self._generate_verification_scripts()
+            elif action == 'save':
+                self._save_vps_config()
+            elif action == 'load':
+                self._load_vps_config()
             elif action == 'guide':
                 self._show_vps_guide()
 
     def _add_vps_server(self):
-        """Add a new VPS server configuration"""
+        """Add a new VPS server configuration with validation"""
         self.tui.section("Add VPS Server")
 
-        # Get server details
+        # Get server details with validation
         hostname = self.menu.prompt_input("Server hostname", default="vps-server-01")
-        ip_address = self.menu.prompt_input("IPv4 address", default="1.2.3.4")
-        ipv6_address = self.menu.prompt_input("IPv6 subnet (optional)", default="2001:db8::/48")
+
+        # Validate hostname isn't duplicate
+        if self.vps_manager.check_duplicate_server(hostname, ""):
+            self.tui.warning(f"Server with hostname '{hostname}' already exists")
+            if not self.menu.confirm("Continue anyway?", default=False):
+                return
+
+        # Get and validate IPv4 address
+        while True:
+            ip_address = self.menu.prompt_input("IPv4 address", default="1.2.3.4")
+
+            # Check if valid IP
+            if not self.vps_manager.validate_ip_address(ip_address, "ipv4"):
+                self.tui.error(f"Invalid IPv4 address: {ip_address}")
+                if not self.menu.confirm("Try again?", default=True):
+                    return
+                continue
+
+            # Check if duplicate
+            existing = self.vps_manager.check_duplicate_server("", ip_address)
+            if existing:
+                self.tui.warning(f"Server with IP '{ip_address}' already exists: {existing.hostname}")
+                if not self.menu.confirm("Continue anyway?", default=False):
+                    return
+
+            break
+
+        # Get and validate IPv6 address (optional)
+        ipv6_address = None
+        ipv6_input = self.menu.prompt_input("IPv6 subnet (optional, press Enter to skip)", default="")
+        if ipv6_input:
+            if not self.vps_manager.validate_ip_address(ipv6_input, "subnet"):
+                self.tui.warning(f"Invalid IPv6 subnet: {ipv6_input}, skipping")
+            else:
+                ipv6_address = ipv6_input
+
+        # Get location details
         country_code = self.menu.prompt_input("Country code (2 letters)", default="US")
         region = self.menu.prompt_input("Region/State", default="California")
         city = self.menu.prompt_input("City (optional)", default="")
@@ -1034,7 +1088,7 @@ class EnhancedPolyglotOrchestrator:
             server = VPSServer(
                 hostname=hostname,
                 ip_address=ip_address,
-                ipv6_address=ipv6_address if ipv6_address else None,
+                ipv6_address=ipv6_address,
                 country_code=country_code,
                 region=region,
                 provider=provider
@@ -1049,6 +1103,15 @@ class EnhancedPolyglotOrchestrator:
                 self.tui.info(f"  Location: {region}, {country_code}")
             self.tui.info(f"  Provider: {provider.value}")
             print()
+
+            # Auto-save after adding
+            if self.menu.confirm("Save configuration now?", default=True):
+                try:
+                    self.vps_manager.save_servers()
+                    self.tui.success("Configuration saved")
+                except Exception as e:
+                    self.tui.warning(f"Could not auto-save: {e}")
+
             self.tui.info("Use 'Generate Configs' to export configuration files")
         except Exception as e:
             self.tui.error(f"Failed to add server: {e}")
@@ -1159,6 +1222,61 @@ class EnhancedPolyglotOrchestrator:
                 self.tui.info("Run the script on each VPS server to verify geolocation")
             except Exception as e:
                 self.tui.error(f"Failed to generate script: {e}")
+
+    def _save_vps_config(self):
+        """Save VPS server configuration"""
+        self.tui.section("Save VPS Configuration")
+
+        if not self.vps_manager.servers:
+            self.tui.warning("No servers to save")
+            return
+
+        self.tui.info(f"Servers to save: {len(self.vps_manager.servers)}")
+        for server in self.vps_manager.servers:
+            self.tui.list_item(f"{server.hostname} - {server.ip_address}", level=1)
+        print()
+
+        # Get save path
+        default_path = str(self.vps_manager.config_file)
+        save_path = self.menu.prompt_input("Save to", default=default_path)
+
+        if self.menu.confirm(f"Save {len(self.vps_manager.servers)} server(s)?", default=True):
+            try:
+                saved_path = self.vps_manager.save_servers(save_path)
+                self.tui.success(f"Configuration saved to: {saved_path}")
+            except Exception as e:
+                self.tui.error(f"Failed to save: {e}")
+
+    def _load_vps_config(self):
+        """Load VPS server configuration"""
+        self.tui.section("Load VPS Configuration")
+
+        # Get load path
+        default_path = str(self.vps_manager.config_file)
+        load_path = self.menu.prompt_input("Load from", default=default_path)
+
+        if not Path(load_path).exists():
+            self.tui.error(f"File not found: {load_path}")
+            return
+
+        # Warn if servers will be replaced
+        if self.vps_manager.servers:
+            self.tui.warning(f"This will replace {len(self.vps_manager.servers)} existing server(s)")
+            if not self.menu.confirm("Continue?", default=False):
+                return
+
+        try:
+            count = self.vps_manager.load_servers(load_path)
+            self.tui.success(f"Loaded {count} server(s) from: {load_path}")
+            print()
+
+            # Show loaded servers
+            if self.vps_manager.servers:
+                self.tui.info("Loaded servers:")
+                for server in self.vps_manager.servers:
+                    self.tui.list_item(f"{server.hostname} - {server.ip_address} ({server.country_code})", level=1)
+        except Exception as e:
+            self.tui.error(f"Failed to load: {e}")
 
     def _show_vps_guide(self):
         """Show VPS geolocation guide"""
