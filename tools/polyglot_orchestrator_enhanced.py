@@ -47,6 +47,19 @@ except ImportError:
     ValidationError = Exception
     FileOperationError = Exception
 
+# Import VPS Geolocation Manager
+try:
+    from vps_geo_manager import (
+        VPSGeoManager, VPSServer, GeolocationConfig, VPSProvider
+    )
+    VPS_AVAILABLE = True
+except ImportError:
+    VPS_AVAILABLE = False
+    VPSGeoManager = None
+    VPSServer = None
+    VPSProvider = None
+    GeolocationConfig = None
+
 
 class EnhancedPolyglotOrchestrator:
     """Enhanced orchestrator with polished workflow"""
@@ -64,6 +77,17 @@ class EnhancedPolyglotOrchestrator:
         self.browser = FileBrowser(self.tui)
         self.optimizer = CascadeOptimizer(self.tui, use_acceleration=True)
         self.cmd_executor = CommandExecutor(self.tui)
+
+        # Initialize VPS manager if available
+        self.vps_manager = None
+        if VPS_AVAILABLE:
+            try:
+                self.vps_manager = VPSGeoManager(verbose=False)
+                self.vps_manager.tui = self.tui
+                self.vps_manager.menu = self.menu
+                self.tui.success("VPS Geolocation Manager loaded")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize VPS manager: {e}")
 
         # Load configuration if available
         self.config = None
@@ -148,7 +172,7 @@ class EnhancedPolyglotOrchestrator:
                 self.tui.error(f"Failed to create config: {e}")
 
     def run_interactive(self):
-        """Run polished interactive workflow"""
+        """Run polished interactive workflow with main menu"""
         self.tui.banner("POLYGOTTEM v2.0", "Enhanced Interactive Polyglot Generator")
 
         # Show enhancements status
@@ -157,19 +181,82 @@ class EnhancedPolyglotOrchestrator:
         else:
             self.tui.warning("⚠️ Running in basic mode (enhancements not available)")
 
+        if VPS_AVAILABLE and self.vps_manager:
+            self.tui.success("✅ VPS Geolocation Manager active")
+
         self.tui.info("🎯 Polished workflow with AI-powered optimization")
         self.tui.info("📁 No more typing file paths - use the file browser!")
         self.tui.info("🤖 Intel NPU/GPU accelerated cascade optimization")
         self.tui.info("💻 OS-specific command execution support")
         if ENHANCEMENTS_AVAILABLE:
             self.tui.info("🛡️ Input validation, atomic writes, progress indicators")
+        if VPS_AVAILABLE:
+            self.tui.info("🌍 Worldwide VPS infrastructure management")
         print()
 
-        # Offer configuration menu
-        if ENHANCEMENTS_AVAILABLE and self.config:
-            if self.menu.confirm("View/edit configuration before starting?", default=False):
+        # Main menu loop
+        while True:
+            choice = self._show_main_menu()
+            if choice is None or choice == 'exit':
+                self.tui.info("Goodbye!")
+                break
+            elif choice == 'polyglot':
+                self._run_polyglot_workflow()
+            elif choice == 'vps':
+                self._run_vps_management()
+            elif choice == 'deploy':
+                self._run_vps_deployment()
+            elif choice == 'config':
                 self.show_configuration_menu()
-                print()
+
+    def _show_main_menu(self) -> Optional[str]:
+        """Show main menu and return selected action"""
+        self.tui.header("Main Menu")
+
+        options = [
+            {
+                'label': '🎨 Generate Polyglot',
+                'description': 'Create polyglot files with embedded payloads',
+                'value': 'polyglot'
+            },
+        ]
+
+        if VPS_AVAILABLE and self.vps_manager:
+            options.extend([
+                {
+                    'label': '🌍 Manage VPS Servers',
+                    'description': 'Configure worldwide server infrastructure',
+                    'value': 'vps'
+                },
+                {
+                    'label': '🚀 Deploy to VPS',
+                    'description': 'Deploy polyglots to configured servers',
+                    'value': 'deploy'
+                },
+            ])
+
+        if ENHANCEMENTS_AVAILABLE and self.config:
+            options.append({
+                'label': '⚙️ Configuration',
+                'description': 'Manage system configuration',
+                'value': 'config'
+            })
+
+        options.append({
+            'label': '❌ Exit',
+            'description': 'Exit POLYGOTTEM',
+            'value': 'exit'
+        })
+
+        choice_idx = self.menu.single_select("Select Action", options)
+        if choice_idx is None:
+            return 'exit'
+
+        return options[choice_idx]['value']
+
+    def _run_polyglot_workflow(self):
+        """Run the polyglot generation workflow"""
+        self.tui.header("Polyglot Generation Workflow")
 
         # Show welcome and confirm
         if not self.menu.confirm("Ready to begin polyglot generation?", default=True):
@@ -845,6 +932,392 @@ class EnhancedPolyglotOrchestrator:
             self.optimizer.record_result(method_id, success)
 
         self.tui.success("Results recorded for future optimization")
+
+    def _run_vps_management(self):
+        """Run VPS server management workflow"""
+        self.tui.header("VPS Server Management")
+
+        if not self.vps_manager:
+            self.tui.error("VPS manager not available")
+            self.tui.info("The VPS Geolocation Manager could not be loaded")
+            return
+
+        self.tui.info("Configure worldwide VPS infrastructure with geolocation")
+        self.tui.info("Generate WireGuard/WARP configs, WHOIS objects, and BGP settings")
+        print()
+
+        # VPS management menu
+        while True:
+            vps_options = [
+                {
+                    'label': '➕ Add VPS Server',
+                    'description': 'Configure a new VPS with geolocation',
+                    'value': 'add'
+                },
+                {
+                    'label': '📋 List Servers',
+                    'description': 'View all configured VPS servers',
+                    'value': 'list'
+                },
+                {
+                    'label': '🔧 Generate Configs',
+                    'description': 'Export WireGuard/WARP and WHOIS configs',
+                    'value': 'export'
+                },
+                {
+                    'label': '✅ Verify Geolocation',
+                    'description': 'Generate verification scripts',
+                    'value': 'verify'
+                },
+                {
+                    'label': '📖 View Guide',
+                    'description': 'Show VPS setup documentation',
+                    'value': 'guide'
+                },
+                {
+                    'label': '↩️ Back',
+                    'description': 'Return to main menu',
+                    'value': 'back'
+                },
+            ]
+
+            choice_idx = self.menu.single_select("VPS Management", vps_options)
+            if choice_idx is None:
+                break
+
+            action = vps_options[choice_idx]['value']
+
+            if action == 'back':
+                break
+            elif action == 'add':
+                self._add_vps_server()
+            elif action == 'list':
+                self._list_vps_servers()
+            elif action == 'export':
+                self._export_vps_configs()
+            elif action == 'verify':
+                self._generate_verification_scripts()
+            elif action == 'guide':
+                self._show_vps_guide()
+
+    def _add_vps_server(self):
+        """Add a new VPS server configuration"""
+        self.tui.section("Add VPS Server")
+
+        # Get server details
+        hostname = self.menu.prompt_input("Server hostname", default="vps-server-01")
+        ip_address = self.menu.prompt_input("IPv4 address", default="1.2.3.4")
+        ipv6_address = self.menu.prompt_input("IPv6 subnet (optional)", default="2001:db8::/48")
+        country_code = self.menu.prompt_input("Country code (2 letters)", default="US")
+        region = self.menu.prompt_input("Region/State", default="California")
+        city = self.menu.prompt_input("City (optional)", default="")
+
+        # Select provider
+        provider_options = [
+            {'label': 'AWS', 'value': VPSProvider.AWS},
+            {'label': 'DigitalOcean', 'value': VPSProvider.DIGITALOCEAN},
+            {'label': 'Vultr', 'value': VPSProvider.VULTR},
+            {'label': 'Linode', 'value': VPSProvider.LINODE},
+            {'label': 'Hetzner', 'value': VPSProvider.HETZNER},
+            {'label': 'OVH', 'value': VPSProvider.OVH},
+            {'label': 'Custom', 'value': VPSProvider.CUSTOM},
+        ]
+
+        provider_idx = self.menu.single_select("Select VPS Provider", provider_options)
+        if provider_idx is None:
+            return
+
+        provider = provider_options[provider_idx]['value']
+
+        # Create actual VPSServer object and add to manager
+        try:
+            server = VPSServer(
+                hostname=hostname,
+                ip_address=ip_address,
+                ipv6_address=ipv6_address if ipv6_address else None,
+                country_code=country_code,
+                region=region,
+                provider=provider
+            )
+            self.vps_manager.servers.append(server)
+
+            self.tui.success(f"Added VPS server: {hostname}")
+            self.tui.info(f"  IP: {ip_address}")
+            if city:
+                self.tui.info(f"  Location: {city}, {region}, {country_code}")
+            else:
+                self.tui.info(f"  Location: {region}, {country_code}")
+            self.tui.info(f"  Provider: {provider.value}")
+            print()
+            self.tui.info("Use 'Generate Configs' to export configuration files")
+        except Exception as e:
+            self.tui.error(f"Failed to add server: {e}")
+
+    def _list_vps_servers(self):
+        """List all configured VPS servers"""
+        self.tui.section("Configured VPS Servers")
+
+        if not self.vps_manager.servers:
+            self.tui.info("No servers configured yet")
+            self.tui.info("Use 'Add VPS Server' to configure your infrastructure")
+            return
+
+        # Display servers in a table
+        self.tui.info(f"Total servers: {len(self.vps_manager.servers)}")
+        print()
+
+        headers = ["Hostname", "IP Address", "Location", "Provider"]
+        rows = []
+        for server in self.vps_manager.servers:
+            location = f"{server.region}, {server.country_code}"
+            rows.append([
+                server.hostname,
+                server.ip_address,
+                location,
+                server.provider.value
+            ])
+
+        self.tui.table(headers, rows)
+
+    def _export_vps_configs(self):
+        """Export VPS configuration files"""
+        self.tui.section("Export VPS Configurations")
+
+        if not self.vps_manager.servers:
+            self.tui.warning("No servers configured")
+            self.tui.info("Add VPS servers first before exporting configs")
+            return
+
+        output_dir = self.menu.prompt_input(
+            "Output directory",
+            default="./vps_configs"
+        )
+
+        self.tui.info(f"Exporting configs to: {output_dir}")
+        self.tui.info("Generated files will include:")
+        self.tui.list_item("WireGuard/WARP configuration (warp.conf)", level=1)
+        self.tui.list_item("Installation scripts (install_warp_*.sh)", level=1)
+        self.tui.list_item("RIPE WHOIS objects (ripe_inet6num.txt)", level=1)
+        self.tui.list_item("BIRD BGP configuration (bird.conf)", level=1)
+        self.tui.list_item("Geofeed CSV (geofeed.csv)", level=1)
+        self.tui.list_item("Verification script (verify_geo.sh)", level=1)
+        print()
+
+        if self.menu.confirm("Export configurations now?", default=True):
+            try:
+                # Call actual VPS manager export method
+                results = self.vps_manager.export_server_configs(output_dir)
+
+                self.tui.success("Configurations exported successfully!")
+                print()
+
+                # Show what was generated
+                for server_name, files in results.items():
+                    self.tui.info(f"{server_name}:")
+                    for file_path in files:
+                        self.tui.list_item(file_path, level=1)
+                    print()
+
+                self.tui.info(f"All configs saved to: {output_dir}/")
+            except Exception as e:
+                self.tui.error(f"Export failed: {e}")
+                if self.config and hasattr(self.config, 'verbose') and self.config.verbose:
+                    import traceback
+                    traceback.print_exc()
+
+    def _generate_verification_scripts(self):
+        """Generate geolocation verification scripts"""
+        self.tui.section("Generate Verification Scripts")
+
+        if not self.vps_manager.servers:
+            self.tui.warning("No servers configured")
+            self.tui.info("Add VPS servers first before generating verification scripts")
+            return
+
+        self.tui.info("Verification script will check geolocation across:")
+        self.tui.list_item("Cloudflare Trace API", level=1)
+        self.tui.list_item("IPInfo.io", level=1)
+        self.tui.list_item("IP-API", level=1)
+        self.tui.list_item("RIPE WHOIS database", level=1)
+        print()
+
+        output_file = self.menu.prompt_input(
+            "Output script path",
+            default="./verify_geo.sh"
+        )
+
+        if self.menu.confirm("Generate verification script?", default=True):
+            try:
+                # Call actual VPS manager method
+                script_path = self.vps_manager.generate_verification_script(
+                    self.vps_manager.servers,
+                    output_file
+                )
+
+                self.tui.success(f"Generated: {script_path}")
+                self.tui.info("Make executable with: chmod +x verify_geo.sh")
+                self.tui.info("Run the script on each VPS server to verify geolocation")
+            except Exception as e:
+                self.tui.error(f"Failed to generate script: {e}")
+
+    def _show_vps_guide(self):
+        """Show VPS geolocation guide"""
+        self.tui.section("VPS Geolocation Guide")
+
+        guide_path = Path(__file__).parent.parent / "VPS_GEOLOCATION_GUIDE.md"
+
+        if guide_path.exists():
+            self.tui.success(f"Full guide available at: {guide_path}")
+            self.tui.info("\nQuick Start:")
+            self.tui.list_item("1. Add VPS servers with location details", level=1)
+            self.tui.list_item("2. Export all configurations", level=1)
+            self.tui.list_item("3. Deploy configs to each server", level=1)
+            self.tui.list_item("4. Generate WireGuard keys on server", level=1)
+            self.tui.list_item("5. Start WARP and update WHOIS database", level=1)
+            self.tui.list_item("6. Wait 1 month for geolocation propagation", level=1)
+            self.tui.list_item("7. Verify with verification scripts", level=1)
+            print()
+
+            if self.menu.confirm("View full guide?", default=False):
+                # Try to open with less/more
+                try:
+                    import subprocess
+                    subprocess.run(['less', str(guide_path)])
+                except:
+                    self.tui.info(f"Please view manually: {guide_path}")
+        else:
+            self.tui.warning("Guide not found")
+            self.tui.info("Expected location: VPS_GEOLOCATION_GUIDE.md")
+
+    def _run_vps_deployment(self):
+        """Deploy polyglots to VPS servers"""
+        self.tui.header("Deploy to VPS Infrastructure")
+
+        if not self.vps_manager:
+            self.tui.error("VPS manager not available")
+            return
+
+        # Check if servers are configured
+        if not self.vps_manager.servers:
+            self.tui.warning("No VPS servers configured")
+            if self.menu.confirm("Configure VPS servers now?", default=True):
+                self._run_vps_management()
+            return
+
+        self.tui.info("Deploy polyglot files to worldwide VPS infrastructure")
+        self.tui.info(f"Configured servers: {len(self.vps_manager.servers)}")
+        for server in self.vps_manager.servers:
+            self.tui.list_item(f"{server.hostname} ({server.country_code})", level=1)
+        print()
+
+        # Deployment workflow
+        deployment_options = [
+            {
+                'label': '📤 Deploy Existing Polyglot',
+                'description': 'Upload existing polyglot file to servers',
+                'value': 'deploy'
+            },
+            {
+                'label': '🔄 Generate & Deploy',
+                'description': 'Create new polyglot and deploy',
+                'value': 'generate_deploy'
+            },
+            {
+                'label': '🗺️ Deploy by Region',
+                'description': 'Deploy different payloads to different regions',
+                'value': 'regional'
+            },
+            {
+                'label': '↩️ Back',
+                'description': 'Return to main menu',
+                'value': 'back'
+            },
+        ]
+
+        choice_idx = self.menu.single_select("Deployment Options", deployment_options)
+        if choice_idx is None:
+            return
+
+        action = deployment_options[choice_idx]['value']
+
+        if action == 'back':
+            return
+        elif action == 'deploy':
+            self._deploy_existing_polyglot()
+        elif action == 'generate_deploy':
+            self._generate_and_deploy()
+        elif action == 'regional':
+            self._regional_deployment()
+
+    def _deploy_existing_polyglot(self):
+        """Deploy an existing polyglot file"""
+        self.tui.section("Deploy Existing Polyglot")
+
+        # Browse for polyglot file
+        polyglot_file = self.browser.browse(
+            title="Select Polyglot File",
+            multi_select=False,
+            file_type_filter='all'
+        )
+
+        if not polyglot_file:
+            return
+
+        self.tui.success(f"Selected: {polyglot_file.name}")
+        print()
+
+        # Show target servers
+        self.tui.info(f"Target servers ({len(self.vps_manager.servers)}):")
+        for server in self.vps_manager.servers:
+            self.tui.list_item(f"{server.hostname} - {server.ip_address} ({server.country_code})", level=1)
+        print()
+
+        if self.menu.confirm(f"Deploy to all {len(self.vps_manager.servers)} servers?", default=True):
+            self.tui.info("Deploying polyglot...")
+            print()
+
+            # Show deployment information
+            self.tui.info("Deployment method: Manual SCP/SFTP")
+            self.tui.info("To deploy manually, run on each server:")
+            print()
+
+            for server in self.vps_manager.servers:
+                deploy_cmd = f"scp {polyglot_file} root@{server.ip_address}:/tmp/"
+                self.tui.list_item(deploy_cmd, level=1)
+
+            print()
+            self.tui.warning("Note: Automatic SSH deployment not yet implemented")
+            self.tui.info("Copy the commands above to deploy to each server")
+            self.tui.info("Future versions will support automatic deployment")
+
+    def _generate_and_deploy(self):
+        """Generate a new polyglot and deploy it"""
+        self.tui.section("Generate & Deploy")
+
+        self.tui.info("First, let's generate the polyglot...")
+
+        # Run polyglot workflow
+        self._run_polyglot_workflow()
+
+        # Then offer to deploy
+        if self.menu.confirm("Deploy generated polyglot to VPS servers?", default=True):
+            self._deploy_existing_polyglot()
+
+    def _regional_deployment(self):
+        """Deploy different payloads to different regions"""
+        self.tui.section("Regional Deployment")
+
+        self.tui.info("Deploy region-specific polyglots:")
+        self.tui.list_item("North America: Custom payload for US/CA", level=1)
+        self.tui.list_item("Europe: Custom payload for EU countries", level=1)
+        self.tui.list_item("Asia-Pacific: Custom payload for APAC region", level=1)
+        print()
+
+        self.tui.info("This feature allows targeted deployment based on geolocation")
+        self.tui.warning("Not yet implemented - coming soon!")
+
+        if self.menu.confirm("Return to deployment menu?", default=True):
+            return
 
 
 def main():
