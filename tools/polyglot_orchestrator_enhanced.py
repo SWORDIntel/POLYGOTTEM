@@ -49,11 +49,16 @@ except ImportError:
 
 # Import VPS Geolocation Manager
 try:
-    from vps_geo_manager import VPSGeoManager, VPSServer, GeolocationConfig, VPSProvider
+    from vps_geo_manager import (
+        VPSGeoManager, VPSServer, GeolocationConfig, VPSProvider
+    )
     VPS_AVAILABLE = True
 except ImportError:
     VPS_AVAILABLE = False
     VPSGeoManager = None
+    VPSServer = None
+    VPSProvider = None
+    GeolocationConfig = None
 
 
 class EnhancedPolyglotOrchestrator:
@@ -1009,13 +1014,13 @@ class EnhancedPolyglotOrchestrator:
 
         # Select provider
         provider_options = [
-            {'label': 'AWS', 'value': 'aws'},
-            {'label': 'DigitalOcean', 'value': 'digitalocean'},
-            {'label': 'Vultr', 'value': 'vultr'},
-            {'label': 'Linode', 'value': 'linode'},
-            {'label': 'Hetzner', 'value': 'hetzner'},
-            {'label': 'OVH', 'value': 'ovh'},
-            {'label': 'Custom', 'value': 'custom'},
+            {'label': 'AWS', 'value': VPSProvider.AWS},
+            {'label': 'DigitalOcean', 'value': VPSProvider.DIGITALOCEAN},
+            {'label': 'Vultr', 'value': VPSProvider.VULTR},
+            {'label': 'Linode', 'value': VPSProvider.LINODE},
+            {'label': 'Hetzner', 'value': VPSProvider.HETZNER},
+            {'label': 'OVH', 'value': VPSProvider.OVH},
+            {'label': 'Custom', 'value': VPSProvider.CUSTOM},
         ]
 
         provider_idx = self.menu.single_select("Select VPS Provider", provider_options)
@@ -1024,25 +1029,64 @@ class EnhancedPolyglotOrchestrator:
 
         provider = provider_options[provider_idx]['value']
 
-        # Create server object (mock for now - actual implementation would use VPSServer class)
-        self.tui.success(f"Added VPS server: {hostname}")
-        self.tui.info(f"  IP: {ip_address}")
-        self.tui.info(f"  Location: {city}, {region}, {country_code}")
-        self.tui.info(f"  Provider: {provider}")
-        print()
-        self.tui.info("Use 'Generate Configs' to export configuration files")
+        # Create actual VPSServer object and add to manager
+        try:
+            server = VPSServer(
+                hostname=hostname,
+                ip_address=ip_address,
+                ipv6_address=ipv6_address if ipv6_address else None,
+                country_code=country_code,
+                region=region,
+                provider=provider
+            )
+            self.vps_manager.servers.append(server)
+
+            self.tui.success(f"Added VPS server: {hostname}")
+            self.tui.info(f"  IP: {ip_address}")
+            if city:
+                self.tui.info(f"  Location: {city}, {region}, {country_code}")
+            else:
+                self.tui.info(f"  Location: {region}, {country_code}")
+            self.tui.info(f"  Provider: {provider.value}")
+            print()
+            self.tui.info("Use 'Generate Configs' to export configuration files")
+        except Exception as e:
+            self.tui.error(f"Failed to add server: {e}")
 
     def _list_vps_servers(self):
         """List all configured VPS servers"""
         self.tui.section("Configured VPS Servers")
 
-        # Mock data - actual implementation would use self.vps_manager.servers
-        self.tui.info("No servers configured yet")
-        self.tui.info("Use 'Add VPS Server' to configure your infrastructure")
+        if not self.vps_manager.servers:
+            self.tui.info("No servers configured yet")
+            self.tui.info("Use 'Add VPS Server' to configure your infrastructure")
+            return
+
+        # Display servers in a table
+        self.tui.info(f"Total servers: {len(self.vps_manager.servers)}")
+        print()
+
+        headers = ["Hostname", "IP Address", "Location", "Provider"]
+        rows = []
+        for server in self.vps_manager.servers:
+            location = f"{server.region}, {server.country_code}"
+            rows.append([
+                server.hostname,
+                server.ip_address,
+                location,
+                server.provider.value
+            ])
+
+        self.tui.table(headers, rows)
 
     def _export_vps_configs(self):
         """Export VPS configuration files"""
         self.tui.section("Export VPS Configurations")
+
+        if not self.vps_manager.servers:
+            self.tui.warning("No servers configured")
+            self.tui.info("Add VPS servers first before exporting configs")
+            return
 
         output_dir = self.menu.prompt_input(
             "Output directory",
@@ -1057,21 +1101,45 @@ class EnhancedPolyglotOrchestrator:
         self.tui.list_item("BIRD BGP configuration (bird.conf)", level=1)
         self.tui.list_item("Geofeed CSV (geofeed.csv)", level=1)
         self.tui.list_item("Verification script (verify_geo.sh)", level=1)
+        print()
 
         if self.menu.confirm("Export configurations now?", default=True):
-            # Actual implementation would call self.vps_manager.export_all_configs()
-            self.tui.success("Configurations exported successfully")
-            self.tui.info(f"Check {output_dir}/ for generated files")
+            try:
+                # Call actual VPS manager export method
+                results = self.vps_manager.export_server_configs(output_dir)
+
+                self.tui.success("Configurations exported successfully!")
+                print()
+
+                # Show what was generated
+                for server_name, files in results.items():
+                    self.tui.info(f"{server_name}:")
+                    for file_path in files:
+                        self.tui.list_item(file_path, level=1)
+                    print()
+
+                self.tui.info(f"All configs saved to: {output_dir}/")
+            except Exception as e:
+                self.tui.error(f"Export failed: {e}")
+                if self.config and hasattr(self.config, 'verbose') and self.config.verbose:
+                    import traceback
+                    traceback.print_exc()
 
     def _generate_verification_scripts(self):
         """Generate geolocation verification scripts"""
         self.tui.section("Generate Verification Scripts")
+
+        if not self.vps_manager.servers:
+            self.tui.warning("No servers configured")
+            self.tui.info("Add VPS servers first before generating verification scripts")
+            return
 
         self.tui.info("Verification script will check geolocation across:")
         self.tui.list_item("Cloudflare Trace API", level=1)
         self.tui.list_item("IPInfo.io", level=1)
         self.tui.list_item("IP-API", level=1)
         self.tui.list_item("RIPE WHOIS database", level=1)
+        print()
 
         output_file = self.menu.prompt_input(
             "Output script path",
@@ -1079,9 +1147,18 @@ class EnhancedPolyglotOrchestrator:
         )
 
         if self.menu.confirm("Generate verification script?", default=True):
-            # Actual implementation would call self.vps_manager.generate_verification_script()
-            self.tui.success(f"Generated: {output_file}")
-            self.tui.info("Make executable with: chmod +x verify_geo.sh")
+            try:
+                # Call actual VPS manager method
+                script_path = self.vps_manager.generate_verification_script(
+                    self.vps_manager.servers,
+                    output_file
+                )
+
+                self.tui.success(f"Generated: {script_path}")
+                self.tui.info("Make executable with: chmod +x verify_geo.sh")
+                self.tui.info("Run the script on each VPS server to verify geolocation")
+            except Exception as e:
+                self.tui.error(f"Failed to generate script: {e}")
 
     def _show_vps_guide(self):
         """Show VPS geolocation guide"""
@@ -1121,16 +1198,16 @@ class EnhancedPolyglotOrchestrator:
             return
 
         # Check if servers are configured
-        # Mock check - actual implementation would check self.vps_manager.servers
-        has_servers = False
-
-        if not has_servers:
+        if not self.vps_manager.servers:
             self.tui.warning("No VPS servers configured")
             if self.menu.confirm("Configure VPS servers now?", default=True):
                 self._run_vps_management()
             return
 
         self.tui.info("Deploy polyglot files to worldwide VPS infrastructure")
+        self.tui.info(f"Configured servers: {len(self.vps_manager.servers)}")
+        for server in self.vps_manager.servers:
+            self.tui.list_item(f"{server.hostname} ({server.country_code})", level=1)
         print()
 
         # Deployment workflow
@@ -1187,15 +1264,31 @@ class EnhancedPolyglotOrchestrator:
             return
 
         self.tui.success(f"Selected: {polyglot_file.name}")
+        print()
 
-        # Select target servers (mock)
-        self.tui.info("Target servers: All configured VPS servers")
+        # Show target servers
+        self.tui.info(f"Target servers ({len(self.vps_manager.servers)}):")
+        for server in self.vps_manager.servers:
+            self.tui.list_item(f"{server.hostname} - {server.ip_address} ({server.country_code})", level=1)
+        print()
 
-        if self.menu.confirm("Deploy to all servers?", default=True):
+        if self.menu.confirm(f"Deploy to all {len(self.vps_manager.servers)} servers?", default=True):
             self.tui.info("Deploying polyglot...")
-            # Actual implementation would use SCP/SFTP to deploy
-            self.tui.success("Deployment complete")
-            self.tui.info("Polyglot deployed to all configured servers")
+            print()
+
+            # Show deployment information
+            self.tui.info("Deployment method: Manual SCP/SFTP")
+            self.tui.info("To deploy manually, run on each server:")
+            print()
+
+            for server in self.vps_manager.servers:
+                deploy_cmd = f"scp {polyglot_file} root@{server.ip_address}:/tmp/"
+                self.tui.list_item(deploy_cmd, level=1)
+
+            print()
+            self.tui.warning("Note: Automatic SSH deployment not yet implemented")
+            self.tui.info("Copy the commands above to deploy to each server")
+            self.tui.info("Future versions will support automatic deployment")
 
     def _generate_and_deploy(self):
         """Generate a new polyglot and deploy it"""
