@@ -252,6 +252,22 @@ class PolyglotOrchestrator:
         if polyglot_type is None:
             return
 
+        # Prompt for custom container file
+        custom_file = None
+        print()
+        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
+        self.tui.list_item("Press Enter to use default (generated file)", level=1)
+        self.tui.list_item("Or provide path to custom container file", level=1)
+        print()
+
+        custom_file = self.menu.prompt_input(
+            "Container file path (or press Enter for default)",
+            default=""
+        )
+
+        # Validate custom file
+        custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
+
         # Generate polyglot
         output_file = f"polyglot_{platform.value}_{polyglot_type}.png"
         self.tui.info(f"Generating {polyglot_type} polyglot...")
@@ -259,10 +275,11 @@ class PolyglotOrchestrator:
         try:
             if polyglot_type == 'apt41':
                 # APT-41 cascading PE
-                self.polyglot_gen.create_apt41_cascading_polyglot(output_file)
+                shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+                self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_file_path)
             else:
-                # Standard polyglot
-                self.polyglot_gen.generate(polyglot_type, output_file, recommended_cves[:5])
+                # Standard polyglot with custom container
+                self.polyglot_gen.generate(polyglot_type, output_file, recommended_cves[:5], custom_file_path)
 
             self.artifacts.append(output_file)
             self.tui.success(f"Generated: {output_file}")
@@ -353,11 +370,28 @@ class PolyglotOrchestrator:
         if not self.menu.confirm("Generate APT-41 cascading polyglot?", default=True):
             return
 
+        # Prompt for PNG container
+        print()
+        self.tui.info("Select PNG container for APT-41 polyglot:")
+        self.tui.list_item("Press Enter to use default (minimal 64x64 PNG)", level=1)
+        self.tui.list_item("Or provide path to custom PNG image", level=1)
+        print()
+
+        custom_png = self.menu.prompt_input(
+            "PNG image path (or press Enter for default)",
+            default=""
+        )
+
         output_file = "5AF0PfnN_replica.png"
         self.tui.info("Generating APT-41 polyglot (this may take a moment)...")
 
         try:
-            self.polyglot_gen.create_apt41_cascading_polyglot(output_file)
+            # Generate shellcode
+            shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+
+            # Pass custom PNG if provided
+            custom_png_path = custom_png if custom_png and os.path.isfile(custom_png) else None
+            self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_png_path)
             self.artifacts.append(output_file)
             self.tui.success(f"Generated: {output_file}")
 
