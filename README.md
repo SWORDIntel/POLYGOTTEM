@@ -510,7 +510,7 @@ This software is provided for **defensive security research, education, and auth
 ## 📞 Contact
 
 **SWORDIntel Security Research**
-- Email: security@swordintel.com
+- Email: security@swordintelligence.airforce
 - GitHub: https://github.com/SWORDIntel/POLYGOTTEM
 
 ---
@@ -518,6 +518,7 @@ This software is provided for **defensive security research, education, and auth
 **Version:** 2.0.0 (CHIMERA)  
 **Build Date:** 2025-11-13  
 **Maintained by:** SWORDIntel Security Research
+           **INTERNAL USE ONLY**
 
 ---
 
