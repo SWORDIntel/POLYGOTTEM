@@ -31,6 +31,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tui_helper import TUI, Colors
 
 
+# Try to import classified theme
+try:
+    from tui_theme_classified import ClassifiedTheme
+    CLASSIFIED_THEME_AVAILABLE = True
+except ImportError:
+    CLASSIFIED_THEME_AVAILABLE = False
+    ClassifiedTheme = None
+
+
 # Try to import fingerprint auth and setup
 try:
     from guarantee_fingerprint_auth import GuaranteeFingerprintAuth
@@ -103,15 +112,24 @@ class GuaranteeValidator:
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
-    def __init__(self, tui: Optional[TUI] = None, audit_log_file: Optional[str] = None):
+    def __init__(self, tui: Optional[TUI] = None, audit_log_file: Optional[str] = None, use_classified_theme: bool = True):
         """
         Initialize guarantee validator
 
         Args:
             tui: TUI instance for output
             audit_log_file: Path to audit log file (optional)
+            use_classified_theme: Use classified document theme
         """
-        self.tui = tui if tui else TUI()
+        if tui:
+            self.tui = tui
+        elif use_classified_theme and CLASSIFIED_THEME_AVAILABLE and ClassifiedTheme:
+            try:
+                self.tui = ClassifiedTheme(classification_level="C")
+            except Exception:
+                self.tui = TUI()
+        else:
+            self.tui = TUI()
         self.audit_log_file = audit_log_file or "guarantee_audit.log"
         self.auth_level = AuthorizationLevel.NONE
         self.authorizations: List[Dict[str, Any]] = []
@@ -218,8 +236,11 @@ class GuaranteeValidator:
             },
         ]
 
-        from interactive_menu import InteractiveMenu, MenuBuilder
-        menu = InteractiveMenu(self.tui)
+        try:
+            from interactive_menu import InteractiveMenu, MenuBuilder
+            menu = InteractiveMenu(self.tui)
+        except ImportError:
+            menu = InteractiveMenuStub(self.tui)
 
         selected = menu.single_select(
             "Select your authorization context",
@@ -249,15 +270,15 @@ class GuaranteeValidator:
         self.tui.section("Authorization Details")
 
         if self.auth_level == AuthorizationLevel.AUTHORIZED_PENTESTING:
-            engagement_name = self.menu.prompt_input(
+            engagement_name = menu.prompt_input(
                 "Engagement name/ID",
                 default="ENGAGEMENT_001"
             )
-            client_name = self.menu.prompt_input(
+            client_name = menu.prompt_input(
                 "Client organization name",
                 default="Client Inc."
             )
-            approval_date = self.menu.prompt_input(
+            approval_date = menu.prompt_input(
                 "Approval date (YYYY-MM-DD)",
                 default=datetime.now().strftime('%Y-%m-%d')
             )
@@ -270,11 +291,11 @@ class GuaranteeValidator:
             })
 
         elif self.auth_level == AuthorizationLevel.COORDINATED_RESEARCH:
-            research_topic = self.menu.prompt_input(
+            research_topic = menu.prompt_input(
                 "Research topic",
                 default="Exploit chain analysis"
             )
-            institution = self.menu.prompt_input(
+            institution = menu.prompt_input(
                 "Institution/Organization",
                 default="Research Lab"
             )
@@ -286,7 +307,7 @@ class GuaranteeValidator:
             })
 
         elif self.auth_level == AuthorizationLevel.THREAT_INTEL:
-            use_case = self.menu.prompt_input(
+            use_case = menu.prompt_input(
                 "Specific use case",
                 default="YARA rule development"
             )
@@ -301,7 +322,7 @@ class GuaranteeValidator:
         self.tui.warning("You must acknowledge the legal implications")
         print()
 
-        acknowledged = self.menu.confirm(
+        acknowledged = menu.confirm(
             "I acknowledge that unauthorized use is ILLEGAL and may violate computer fraud laws",
             default=False
         )
@@ -310,7 +331,7 @@ class GuaranteeValidator:
             self.tui.error("⛔ You must acknowledge the legal disclaimer to continue")
             return False
 
-        responsible = self.menu.confirm(
+        responsible = menu.confirm(
             "I agree to use this tool RESPONSIBLY and LEGALLY",
             default=False
         )
