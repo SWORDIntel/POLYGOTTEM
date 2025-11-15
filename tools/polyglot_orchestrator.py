@@ -1454,22 +1454,40 @@ sudo /usr/local/bin/cpu_desync_macos
 
         if self.menu.confirm("Setup remote access?", default=False):
             try:
-                # Prompt for SSH port
+                # Generate random port for security
+                random_port = DuckDNSIntegration.generate_random_port()
+
+                print()
+                self.tui.section("🔒 SSH Port Configuration")
+                self.tui.warning("SECURITY: Using non-standard port to reduce attack surface")
+                self.tui.info(f"Generated random port: {random_port}")
+                print()
+
+                # Prompt for SSH port with random default
                 port_input = self.menu.prompt_input(
-                    "SSH port (default: 22, custom: e.g., 2222)",
-                    default="22"
+                    f"SSH port (Press Enter for random {random_port}, or specify custom)",
+                    default=str(random_port)
                 )
 
                 try:
-                    ssh_port = int(port_input) if port_input else 22
+                    ssh_port = int(port_input) if port_input else random_port
                     if ssh_port < 1 or ssh_port > 65535:
-                        self.tui.warning(f"Invalid port {ssh_port}, using default 22")
-                        ssh_port = 22
+                        self.tui.warning(f"Invalid port {ssh_port}, using random {random_port}")
+                        ssh_port = random_port
                 except ValueError:
-                    self.tui.warning(f"Invalid port '{port_input}', using default 22")
-                    ssh_port = 22
+                    self.tui.warning(f"Invalid port '{port_input}', using random {random_port}")
+                    ssh_port = random_port
 
-                # Initialize DuckDNS with custom port
+                # Show selected port prominently
+                print()
+                self.tui.section(f"📡 Selected SSH Port: {ssh_port}")
+                if ssh_port == 22:
+                    self.tui.warning("⚠ Port 22 is heavily scanned! Consider using non-standard port.")
+                else:
+                    self.tui.success(f"✓ Using secure non-standard port: {ssh_port}")
+                print()
+
+                # Initialize DuckDNS with selected port
                 self.duckdns = DuckDNSIntegration(ssh_port=ssh_port)
 
                 # Register and connect

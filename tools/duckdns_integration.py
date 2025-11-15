@@ -15,6 +15,7 @@ import sys
 import socket
 import subprocess
 import requests
+import random
 from typing import Optional, Dict
 from datetime import datetime
 
@@ -22,21 +23,32 @@ from datetime import datetime
 class DuckDNSIntegration:
     """Manages DuckDNS registration and SSH tunnel setup"""
 
+    @staticmethod
+    def generate_random_port() -> int:
+        """
+        Generate a random non-standard SSH port for security
+
+        Returns:
+            Random port between 2000-65000 (avoiding well-known ports)
+        """
+        return random.randint(2000, 65000)
+
     def __init__(self, domain: str = "polygottem.duckdns.org",
                  api_token: str = "62414348-fa36-4a8c-8fc2-8b96ef48b3ea",
-                 ssh_port: int = 22):
+                 ssh_port: Optional[int] = None):
         """
         Initialize DuckDNS integration
 
         Args:
             domain: DuckDNS subdomain (e.g., "polygottem.duckdns.org")
             api_token: DuckDNS API token
-            ssh_port: SSH server port (default: 22)
+            ssh_port: SSH server port (None = random non-standard port for security)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
         self.api_token = api_token
-        self.ssh_port = ssh_port
+        # Use random port if not specified (security best practice)
+        self.ssh_port = ssh_port if ssh_port is not None else self.generate_random_port()
         self.update_url = f"https://www.duckdns.org/update"
         self.config_file = os.path.expanduser("~/.polygottem_duckdns.conf")
 
@@ -474,14 +486,19 @@ def main():
     parser.add_argument(
         '--port',
         type=int,
-        default=22,
-        help='SSH port (default: 22)'
+        default=None,
+        help='SSH port (default: random non-standard port for security, or specify custom)'
     )
 
     args = parser.parse_args()
 
-    # Initialize integration with custom port
+    # Initialize integration with port (None = random)
     duckdns = DuckDNSIntegration(ssh_port=args.port)
+
+    # Show selected port for user awareness
+    if args.port is None and (args.full or args.setup_ssh):
+        print(f"\n🔒 SECURITY: Using randomized SSH port {duckdns.ssh_port}")
+        print(f"   (Use --port to specify custom port)\n")
 
     if args.update:
         duckdns.update_duckdns(args.ip)
