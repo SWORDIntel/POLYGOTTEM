@@ -1,71 +1,9 @@
 # POLYGOTTEM - Polyglot Exploit Generator
-# Requirements for Intel Meteor Lake Optimization
+# Core Requirements (Minimal Installation)
 
 # Core Dependencies
-# -----------------
-
-# NumPy - Vectorized operations (Intel MKL optimized on Meteor Lake)
 numpy>=1.24.0
 
-# Intel Hardware Acceleration (Optional but Recommended for Meteor Lake)
-# -----------------------------------------------------------------------
-
-# OpenVINO - Intel NPU acceleration for Meteor Lake Core Ultra
-# Provides neural processing unit support for pattern operations
-openvino>=2024.0.0
-
-# Intel Level Zero - Low-latency GPU access for Intel Arc iGPU
-# Direct hardware access for Arc Graphics (Xe-LPG)
-level-zero>=1.14.0
-
-# PyOpenCL - Fallback GPU acceleration
-# Works with Intel Arc and other OpenCL-compatible GPUs
-pyopencl>=2024.1
-
-# Additional Recommendations for Meteor Lake
-# -------------------------------------------
-
-# Intel Extension for Python - Optimized NumPy/SciPy operations
-# Automatically accelerates NumPy on Intel hardware
-intel-extension-for-python>=2.1.0
-
-# Intel Neural Compressor - Model optimization for NPU
-# Further optimizations for AI workloads on NPU
-neural-compressor>=2.5
-
-# Installation Instructions
-# -------------------------
-#
-# Basic installation (CPU only):
-#   pip install numpy
-#
-# Intel Meteor Lake optimized installation (NPU + Arc GPU):
-#   pip install -r requirements.txt
-#
-# Minimal GPU acceleration (without NPU):
-#   pip install numpy pyopencl
-#
-# Check acceleration status:
-#   python3 tools/intel_acceleration.py
-#   python3 tools/exploit_header_generator.py --benchmark
-#   python3 tools/multi_cve_polyglot.py --benchmark
-#
-# Performance Notes
-# -----------------
-# - With NPU: ~10-50x speedup for XOR operations
-# - With Arc GPU: ~5-20x speedup for parallel processing
-# - CPU only: Uses optimized Python bytearrays
-#
-# Meteor Lake Specific Optimizations
-# -----------------------------------
-# The acceleration module automatically detects:
-# - Intel NPU (Core Ultra Series 1)
-# - Intel Arc iGPU (Xe-LPG graphics)
-# - Intel MKL optimizations
-# - Level Zero API for direct GPU access
-#
-# Hardware Requirements
-# ---------------------
-# Optimal: Intel Core Ultra (Meteor Lake) with NPU + Arc iGPU
-# Good: Intel Core with Arc GPU or Iris Xe Graphics
-# Minimum: Any x86_64 CPU (uses Python fallback)
+# Note: For Intel Meteor Lake hardware acceleration (NPU + Arc GPU),
+# see requirements-intel.txt
+# Install with: pip install -r requirements-intel.txt
