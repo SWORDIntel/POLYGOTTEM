@@ -39,67 +39,63 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 
 ## 📦 Installation
 
-### Universal Quick Install (All Platforms)
+### Quick Install (All Platforms - Recommended)
 
 ```bash
 # Clone repository
 git clone https://github.com/SWORDIntel/POLYGOTTEM.git
 cd POLYGOTTEM
 
-# Run universal installer (works on Windows, Linux, macOS)
-./install          # Linux/macOS/WSL
-# OR
-install.bat        # Windows CMD/PowerShell
+# Run universal installer (automatically detects Windows/Linux/macOS)
+python install.py
 
-# Launch POLYGOTTEM
-./launch           # Linux/macOS/WSL
-# OR
-launch.bat         # Windows CMD/PowerShell
+# Launch POLYGOTTEM (same command on all platforms!)
+python launch.py
 ```
 
-**Auto-detection:** The installer automatically detects your OS (Windows/Linux/macOS) and runs the appropriate installer.
+**Auto-detection:** The installer automatically detects your OS and runs the appropriate setup script.
 
 ### Installation Modes
 
 **1. Interactive (Default) - Recommended**
 ```bash
-./install
+python install.py
 # Prompts for hardware acceleration options
 ```
 
 **2. Minimal (CPU Only)**
 ```bash
-./install --auto
+python install.py --auto
 # Fast install, just NumPy (works everywhere)
 ```
 
 **3. Custom Package Selection**
 ```bash
-./install --interactive
+python install.py --interactive
 # Choose individual Intel packages (OpenVINO, PyOpenCL, etc.)
 ```
 
 **4. Full Intel Optimization**
 ```bash
-./install --intel
+python install.py --intel
 # Install all Intel acceleration (1-5GB, requires Intel hardware)
 ```
 
-### Platform-Specific Notes
+### Alternative: Platform-Specific Scripts
 
-**Linux/macOS:**
-- Uses Bash scripts (`install.sh`, `launch.sh`)
-- Automatically detects Python 3.8+
-- Supports ARM64 (M1/M2 Macs)
+If you prefer, you can also run platform-specific scripts directly:
+
+**Linux/macOS/WSL:**
+```bash
+./install.sh          # Interactive
+./install.sh --auto   # Minimal
+./launch.sh           # Launch
+```
 
 **Windows:**
-- Uses PowerShell/CMD batch files (`install.bat`, `launch.bat`)
-- Automatically detects Python 3.8+ in PATH
-- Native Windows virtual environment support
-
-**WSL (Windows Subsystem for Linux):**
-- Use Bash scripts (same as Linux)
-- Full GUARANTEE cascade support
+```batch
+python installers\install.bat
+```
 
 ### Manual Installation
 
@@ -129,31 +125,37 @@ chmod +x polygottem.py
 
 ### **Launch Script (Cross-Platform)**
 
-The `launch` script automatically detects your OS and runs the appropriate launcher:
+Use the universal Python launcher on any platform:
 
 ```bash
-# Launch POLYGOTTEM TUI
-./launch           # Linux/macOS/WSL
-launch.bat         # Windows
+# Launch POLYGOTTEM TUI (works on Windows, Linux, macOS)
+python launch.py
 
 # Run with specific command
-./launch list cves
-launch.bat list cves
+python launch.py list cves
 
 # Run benchmark tests
-./launch --benchmark
-launch.bat --benchmark
+python launch.py --benchmark
 
 # Show help
-./launch --help
-launch.bat --help
+python launch.py --help
 
 # Set default launch mode (interactive + Intel)
-./launch --set-interactive --set-intel
-launch.bat --set-interactive --set-intel
+python launch.py --set-interactive --set-intel
+
+# View current configuration
+python launch.py --show-config
+
+# Reset to defaults
+python launch.py --clear-config
 ```
 
-**Auto-Detection:** `./launch` and `launch.bat` automatically detect your OS and run the correct underlying script (`launch.sh` for Unix, `launchers/launch.bat` for Windows).
+**Or use platform-specific scripts directly:**
+```bash
+./launch.sh           # Linux/macOS/WSL
+```
+
+**Auto-Detection:** The Python launcher automatically detects your OS and runs the appropriate underlying script.
 
 ### **Framework Commands**
 
