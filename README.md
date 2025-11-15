@@ -39,10 +39,58 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 
 ## 📦 Installation
 
+### Quick Install (Recommended)
+
 ```bash
 # Clone repository
 git clone https://github.com/SWORDIntel/POLYGOTTEM.git
 cd POLYGOTTEM
+
+# Run installer (interactive setup)
+./install.sh
+
+# Launch POLYGOTTEM
+./launch.sh
+```
+
+### Installation Modes
+
+**1. Interactive (Default) - Recommended**
+```bash
+./install.sh
+# Prompts for hardware acceleration options
+```
+
+**2. Minimal (CPU Only)**
+```bash
+./install.sh --auto
+# Fast install, just NumPy (works everywhere)
+```
+
+**3. Custom Package Selection**
+```bash
+./install.sh --interactive
+# Choose individual Intel packages (OpenVINO, PyOpenCL, etc.)
+```
+
+**4. Full Intel Optimization**
+```bash
+./install.sh --intel
+# Install all Intel acceleration (1-5GB, requires Intel hardware)
+```
+
+### Manual Installation
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install minimal dependencies
+pip install -r requirements.txt
+
+# Optional: Install Intel acceleration
+pip install -r requirements-intel.txt
 
 # Make executable
 chmod +x polygottem.py
@@ -56,6 +104,24 @@ chmod +x polygottem.py
 ---
 
 ## 🚀 Usage
+
+### **Launch Script**
+
+The `launch.sh` script automatically activates the virtual environment and runs POLYGOTTEM:
+
+```bash
+# Launch POLYGOTTEM TUI
+./launch.sh
+
+# Run with specific command
+./launch.sh list cves
+
+# Run benchmark tests
+./launch.sh --benchmark
+
+# Show help
+./launch.sh --help
+```
 
 ### **Framework Commands**
 
