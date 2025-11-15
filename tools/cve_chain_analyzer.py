@@ -639,6 +639,73 @@ class CVEChainAnalyzer:
 
         return chains[:10]  # Return top 10 chains
 
+    def get_platform_cves(self, platform: TargetPlatform) -> List[str]:
+        """
+        Get all CVE IDs available for a specific platform
+
+        Args:
+            platform: Target platform (Windows, Linux, macOS, iOS, Android)
+
+        Returns:
+            List of CVE IDs for the platform, sorted by CVSS score (highest first)
+        """
+        platform_cves = [
+            cve_id for cve_id, meta in self.cve_database.items()
+            if meta.platform == platform or meta.platform == TargetPlatform.CROSS_PLATFORM
+        ]
+
+        # Sort by CVSS score (highest first) and actively exploited
+        platform_cves.sort(
+            key=lambda cve: (
+                self.cve_database[cve].actively_exploited,
+                self.cve_database[cve].cvss_score
+            ),
+            reverse=True
+        )
+
+        return platform_cves
+
+    def find_exploit_chains(self, platform: TargetPlatform,
+                           goal: str = "full_compromise") -> List[Dict]:
+        """
+        Find exploit chains and return detailed chain information
+
+        Args:
+            platform: Target platform
+            goal: Attack objective (full_compromise, initial_access, etc.)
+
+        Returns:
+            List of chain dictionaries with format: {'cves': [...], 'description': '...'}
+        """
+        # Use existing suggest_chains method to get CVE chains
+        raw_chains = self.suggest_chains(platform, goal)
+
+        # Convert to dictionary format expected by orchestrator
+        chains = []
+        for cve_list in raw_chains:
+            chain_dict = {
+                'cves': cve_list,
+                'description': self._generate_chain_description(cve_list),
+                'platform': platform.value,
+                'goal': goal
+            }
+            chains.append(chain_dict)
+
+        return chains
+
+    def _generate_chain_description(self, cve_chain: List[str]) -> str:
+        """Generate a human-readable description of a CVE chain"""
+        if not cve_chain:
+            return "Empty chain"
+
+        descriptions = []
+        for cve_id in cve_chain:
+            if cve_id in self.cve_database:
+                meta = self.cve_database[cve_id]
+                descriptions.append(f"{meta.exploit_type.value}")
+
+        return " → ".join(descriptions)
+
     def analyze_chain(self, cve_chain: List[str]) -> Dict:
         """
         Analyze a CVE chain and provide detailed breakdown
