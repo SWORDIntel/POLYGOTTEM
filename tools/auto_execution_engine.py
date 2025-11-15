@@ -29,6 +29,14 @@ from dataclasses import dataclass
 
 from tui_helper import TUI, Colors, Symbols
 
+# Try to import C methods bridge
+try:
+    from c_methods_autoexec_bridge import CMethodsAutoExecBridge
+    C_METHODS_AVAILABLE = True
+except ImportError:
+    C_METHODS_AVAILABLE = False
+    CMethodsAutoExecBridge = None
+
 
 class ExecutionPlatform(Enum):
     """Supported execution platforms"""
@@ -283,6 +291,20 @@ class AutoExecutionEngine:
             generator=self._generate_office_dde,
             enabled=False  # Often blocked
         )
+
+        # ===== C METHODS INTEGRATION =====
+        # Integrate native C-based execution methods (POLYGOTTEM C Methods Framework)
+        if C_METHODS_AVAILABLE and CMethodsAutoExecBridge:
+            try:
+                bridge = CMethodsAutoExecBridge(verbose=False)
+                if bridge.is_available():
+                    c_methods = bridge.get_execution_methods()
+                    methods.update(c_methods)
+                    # Note: Methods are prefixed with "c_" to avoid conflicts
+            except Exception as e:
+                # Silently fail if C methods bridge initialization fails
+                # This allows the system to work without C compilation
+                pass
 
         return methods
 
