@@ -16,10 +16,11 @@ def detect_os():
 
 def launch_windows():
     """Launch on Windows"""
-    launcher_path = Path(__file__).parent / "launch.bat"
+    launcher_path = Path(__file__).parent / "installers" / "launch.bat"
 
     if not launcher_path.exists():
         print(f"❌ ERROR: Windows launcher not found at {launcher_path}")
+        print("   Please ensure 'installers/launch.bat' exists")
         return False
 
     try:
@@ -38,10 +39,11 @@ def launch_windows():
 
 def launch_unix():
     """Launch on Unix/Linux/macOS"""
-    launcher_path = Path(__file__).parent / "launch.sh"
+    launcher_path = Path(__file__).parent / "installers" / "launch.sh"
 
     if not launcher_path.exists():
         print(f"❌ ERROR: Unix launcher not found at {launcher_path}")
+        print("   Please ensure 'installers/launch.sh' exists")
         return False
 
     try:

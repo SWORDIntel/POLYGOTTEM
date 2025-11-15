@@ -4,6 +4,9 @@
 
 set -e  # Exit on error
 
+# Navigate to the root directory (parent of installers/)
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
