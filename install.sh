@@ -89,21 +89,28 @@ if [ ! -d "$VENV_DIR" ]; then
         print_msg "$YELLOW" "  or: sudo yum install python3-venv (RHEL/CentOS)"
         exit 1
     fi
+    # Verify venv was created
+    if [ ! -f "$VENV_DIR/bin/python" ]; then
+        print_msg "$RED" "ERROR: venv creation failed - python binary not found"
+        exit 1
+    fi
     print_msg "$GREEN" "✓ Virtual environment created successfully"
 else
     print_msg "$YELLOW" "[2/5] Virtual environment already exists, skipping creation."
 fi
 echo
 
-# Activate virtual environment
-print_msg "$YELLOW" "[3/5] Activating virtual environment..."
-source "$VENV_DIR/bin/activate"
-print_msg "$GREEN" "✓ Virtual environment activated"
-echo
+# Use absolute paths to venv python/pip instead of sourcing activation
+VENV_PYTHON="$VENV_DIR/bin/python"
+VENV_PIP="$VENV_DIR/bin/pip"
 
-# Upgrade pip
-print_msg "$YELLOW" "[4/5] Upgrading pip..."
-pip install --upgrade pip --quiet
+# Upgrade pip using absolute path
+print_msg "$YELLOW" "[3/5] Upgrading pip..."
+$VENV_PYTHON -m pip install --upgrade pip --quiet
+if [ $? -ne 0 ]; then
+    print_msg "$RED" "ERROR: Failed to upgrade pip"
+    exit 1
+fi
 print_msg "$GREEN" "✓ pip upgraded"
 echo
 
@@ -132,7 +139,7 @@ done
 
 # Install core dependencies first
 print_msg "$BLUE" "Installing core dependencies (NumPy)..."
-pip install -r requirements.txt --quiet
+$VENV_PIP install -r requirements.txt --quiet
 print_msg "$GREEN" "✓ Core dependencies installed"
 echo
 
@@ -176,7 +183,7 @@ fi
 
 # Function to check if package is available (system or pip)
 check_package() {
-    python3 -c "import $1" 2>/dev/null
+    $VENV_PYTHON -c "import $1" 2>/dev/null
     return $?
 }
 
@@ -200,7 +207,7 @@ if [ "$INTERACTIVE_MODE" = true ]; then
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_msg "$BLUE" "Installing OpenVINO... (this may take 5-10 minutes)"
-            pip install "openvino>=2024.0.0" --quiet && print_msg "$GREEN" "✓ OpenVINO installed" || print_msg "$RED" "✗ OpenVINO installation failed"
+            $VENV_PIP install "openvino>=2024.0.0" --quiet && print_msg "$GREEN" "✓ OpenVINO installed" || print_msg "$RED" "✗ OpenVINO installation failed"
         fi
     fi
     echo
@@ -247,7 +254,7 @@ if [ "$INTERACTIVE_MODE" = true ]; then
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_msg "$BLUE" "Installing PyOpenCL..."
-            pip install "pyopencl>=2024.1" --quiet && print_msg "$GREEN" "✓ PyOpenCL installed" || print_msg "$RED" "✗ PyOpenCL installation failed"
+            $VENV_PIP install "pyopencl>=2024.1" --quiet && print_msg "$GREEN" "✓ PyOpenCL installed" || print_msg "$RED" "✗ PyOpenCL installation failed"
         fi
     fi
     echo
@@ -265,7 +272,7 @@ if [ "$INTERACTIVE_MODE" = true ]; then
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_msg "$BLUE" "Installing Intel Extension for Scikit-learn..."
-            pip install "scikit-learn-intelex>=2024.0" --quiet && print_msg "$GREEN" "✓ Intel Extension for Scikit-learn installed" || print_msg "$RED" "✗ Installation failed"
+            $VENV_PIP install "scikit-learn-intelex>=2024.0" --quiet && print_msg "$GREEN" "✓ Intel Extension for Scikit-learn installed" || print_msg "$RED" "✗ Installation failed"
         fi
     fi
     echo
@@ -283,7 +290,7 @@ if [ "$INTERACTIVE_MODE" = true ]; then
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_msg "$BLUE" "Installing Neural Compressor... (this may take 5-10 minutes)"
-            pip install "neural-compressor>=2.5" --quiet && print_msg "$GREEN" "✓ Neural Compressor installed" || print_msg "$RED" "✗ Installation failed"
+            $VENV_PIP install "neural-compressor>=2.5" --quiet && print_msg "$GREEN" "✓ Neural Compressor installed" || print_msg "$RED" "✗ Installation failed"
         fi
     fi
     echo
@@ -299,7 +306,7 @@ if [ "$INTEL_ALL" = true ]; then
     print_msg "$BLUE" "Note: Level Zero must be installed separately as a system package"
     echo
     print_msg "$BLUE" "Installing all Intel packages... Please be patient."
-    pip install -r requirements-intel.txt && print_msg "$GREEN" "✓ All Intel packages installed" || print_msg "$RED" "✗ Some packages failed"
+    $VENV_PIP install -r requirements-intel.txt && print_msg "$GREEN" "✓ All Intel packages installed" || print_msg "$RED" "✗ Some packages failed"
 fi
 echo
 
@@ -321,4 +328,37 @@ print_msg "$YELLOW" "  ./install.sh --intel         - Full Intel optimization"
 echo
 print_msg "$YELLOW" "To activate the virtual environment manually:"
 print_msg "$YELLOW" "  source venv/bin/activate"
+echo
+
+# Test GUARANTEE cascade system
+print_msg "$BLUE" "Testing GUARANTEE cascade system..."
+$VENV_PYTHON << 'TESTEOF'
+import sys
+sys.path.insert(0, 'tools')
+
+components = [
+    ('guarantee_chainer', 'GuaranteeChainer'),
+    ('guarantee_validator', 'GuaranteeValidator'),
+    ('guarantee_network_beacon', 'GuaranteeNetworkBeacon'),
+    ('guarantee_fingerprint_setup', 'FingerprintSetupManager'),
+    ('guarantee_beacon_integrator', 'BeaconIntegrator'),
+    ('guarantee_report_generator', 'GuaranteeReportGenerator'),
+    ('tui_theme_classified', 'ClassifiedTheme'),
+]
+
+success_count = 0
+for module_name, class_name in components:
+    try:
+        module = __import__(module_name)
+        if hasattr(module, class_name):
+            success_count += 1
+    except:
+        pass
+
+if success_count == len(components):
+    print("✓ GUARANTEE cascade system verified!")
+else:
+    print(f"⚠ {success_count}/{len(components)} components loaded")
+TESTEOF
+
 echo
