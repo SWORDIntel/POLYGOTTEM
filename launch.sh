@@ -56,6 +56,10 @@ SET_INTEL=false
 CLEAR_CONFIG=false
 SHOW_CONFIG=false
 
+# Set default launch preferences (will be overridden by config file if it exists)
+LAUNCH_MODE="interactive"
+HARDWARE_ACCEL="intel"
+
 # Load saved configuration if it exists
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE" 2>/dev/null || true
