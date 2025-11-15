@@ -682,6 +682,10 @@ class EnhancedPolyglotOrchestrator:
                 'label': '🤖 Adaptive (AI-Optimized)',
                 'description': 'Let AI decide based on environment'
             },
+            {
+                'label': '⛓️ GUARANTEE Chain (NEW!)',
+                'description': 'Chain multiple methods for guaranteed execution across diverse systems'
+            },
         ]
 
         cascade_mode = self.menu.single_select(
@@ -693,6 +697,7 @@ class EnhancedPolyglotOrchestrator:
         config['stop_on_success'] = (cascade_mode == 0)
         config['try_all'] = (cascade_mode == 1)
         config['adaptive'] = (cascade_mode == 2)
+        config['guarantee_chain'] = (cascade_mode == 3)
 
         # Additional options
         config['validate'] = self.menu.confirm(
@@ -767,6 +772,8 @@ class EnhancedPolyglotOrchestrator:
             strategy = "Stop on first success"
         elif redundancy_config['try_all']:
             strategy = "Try all methods"
+        elif redundancy_config.get('guarantee_chain', False):
+            strategy = "⛓️ GUARANTEE Chain (chained execution for maximum coverage)"
         else:
             strategy = "Adaptive (AI-optimized)"
 

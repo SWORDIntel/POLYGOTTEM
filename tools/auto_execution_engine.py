@@ -903,6 +903,90 @@ Main-Class: AutoExec
 
         return output
 
+    def execute_guarantee_chain(self, payload: bytes,
+                               chain_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Execute payload using a GUARANTEE chain
+
+        Args:
+            payload: Payload bytes to execute
+            chain_config: Chain configuration with method ordering
+
+        Returns:
+            Dict with detailed chain execution results
+        """
+        self.tui.section("GUARANTEE Chain Execution")
+
+        if chain_config is None:
+            self.tui.warning("No chain configuration provided")
+            return {'success': False, 'error': 'No chain config'}
+
+        results = {
+            'chain_id': chain_config.get('chain_id', 'unknown'),
+            'methods_in_chain': [],
+            'execution_sequence': [],
+            'total_success': False,
+            'methods_succeeded': [],
+            'methods_failed': []
+        }
+
+        methods = chain_config.get('methods', [])
+        self.tui.info(f"Executing guarantee chain with {len(methods)} method(s)")
+        print()
+
+        for i, method_info in enumerate(methods, 1):
+            method_id = method_info.get('id') or method_info.get('method_id')
+
+            if not method_id or method_id not in self.methods:
+                self.tui.warning(f"[{i}] Unknown method: {method_id}")
+                continue
+
+            method = self.methods[method_id]
+            self.tui.info(f"[{i}/{len(methods)}] Executing: {method.name}")
+
+            try:
+                # Generate execution file
+                file_path = method.generator(payload)
+                results['execution_sequence'].append({
+                    'position': i,
+                    'method': method_id,
+                    'file': file_path,
+                    'status': 'generated'
+                })
+
+                # Validate
+                if method.validator:
+                    is_valid = method.validator(file_path)
+                    if not is_valid:
+                        self.tui.warning(f"Validation failed: {method.name}")
+                        results['methods_failed'].append(method_id)
+                        continue
+
+                self.tui.success(f"✓ Generated and validated: {file_path}")
+                results['methods_succeeded'].append(method_id)
+                results['methods_in_chain'].append({
+                    'method_id': method_id,
+                    'name': method.name,
+                    'status': 'success'
+                })
+
+            except Exception as e:
+                self.tui.error(f"Failed: {str(e)}")
+                results['methods_failed'].append(method_id)
+
+            print()
+
+        # Summary
+        results['total_success'] = len(results['methods_succeeded']) > 0
+        self.tui.section("GUARANTEE Chain Summary")
+        self.tui.key_value("Chain ID", results['chain_id'])
+        self.tui.key_value("Total Methods", str(len(methods)))
+        self.tui.key_value("Succeeded", str(len(results['methods_succeeded'])))
+        self.tui.key_value("Failed", str(len(results['methods_failed'])))
+        self.tui.key_value("Overall Success", "✓ Yes" if results['total_success'] else "✗ No")
+
+        return results
+
 
 if __name__ == '__main__':
     # Demo auto-execution engine
