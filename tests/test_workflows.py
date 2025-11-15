@@ -4,6 +4,11 @@ Test all POLYGOTTEM workflows for missing methods or initialization errors
 """
 import sys
 import inspect
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from tools.polyglot_orchestrator import PolyglotOrchestrator
 from tools.cve_chain_analyzer import CVEChainAnalyzer, TargetPlatform
 

@@ -4,6 +4,11 @@ Advanced workflow method testing - Check for runtime errors
 """
 import sys
 import inspect
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from tools.polyglot_orchestrator import PolyglotOrchestrator
 from tools.multi_cve_polyglot import MultiCVEPolyglot
 from tools.exploit_header_generator import ExploitHeaderGenerator
