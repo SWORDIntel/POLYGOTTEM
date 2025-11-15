@@ -31,6 +31,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tui_helper import TUI, Colors
 
 
+# Try to import fingerprint auth and setup
+try:
+    from guarantee_fingerprint_auth import GuaranteeFingerprintAuth
+    FINGERPRINT_AVAILABLE = True
+except ImportError:
+    FINGERPRINT_AVAILABLE = False
+    GuaranteeFingerprintAuth = None
+
+try:
+    from guarantee_fingerprint_setup import FingerprintSetupManager
+    FINGERPRINT_SETUP_AVAILABLE = True
+except ImportError:
+    FINGERPRINT_SETUP_AVAILABLE = False
+    FingerprintSetupManager = None
+
+
 class AuthorizationLevel:
     """Authorization levels for GUARANTEE mode"""
     NONE = 0
@@ -101,6 +117,23 @@ class GuaranteeValidator:
         self.authorizations: List[Dict[str, Any]] = []
         self.disclaimers_accepted: List[Dict[str, Any]] = []
 
+        # Initialize fingerprint setup manager (checks if first run)
+        self.fingerprint_setup = None
+        if FINGERPRINT_SETUP_AVAILABLE:
+            try:
+                self.fingerprint_setup = FingerprintSetupManager(self.tui)
+            except Exception as e:
+                self.tui.warning(f"Could not initialize fingerprint setup: {e}")
+
+        # Initialize fingerprint authentication if available
+        self.fingerprint_auth = None
+        if FINGERPRINT_AVAILABLE:
+            try:
+                self.fingerprint_auth = GuaranteeFingerprintAuth(self.tui)
+                self.tui.success("Fingerprint authentication system initialized")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize fingerprint auth: {e}")
+
     def display_critical_warning(self):
         """Display critical legal warning"""
         self.tui.raw(self.LEGAL_DISCLAIMER)
@@ -124,11 +157,38 @@ class GuaranteeValidator:
 
     def validate_authorization_interactive(self) -> bool:
         """
-        Interactively validate authorization
+        Interactively validate authorization with fingerprint authentication
 
         Returns:
             True if user confirms authorization
         """
+        # First run: Setup fingerprint if needed
+        if self.fingerprint_setup and self.fingerprint_setup.is_first_run():
+            self.tui.section("FIRST-RUN SETUP")
+            self.tui.warning("⚠️  FIRST TIME SETUP REQUIRED")
+            self.tui.info("Setting up biometric authentication to prevent unauthorized access")
+            print()
+
+            if not self.fingerprint_setup.run_setup_wizard():
+                self.tui.error("⛔ Setup failed - cannot proceed without authentication setup")
+                return False
+
+            print()
+            self.tui.success("✅ Setup complete - now authenticating...")
+            print()
+
+        # Second: Require fingerprint authentication
+        if self.fingerprint_auth:
+            self.tui.section("Step 1: Biometric Authentication")
+            if not self.fingerprint_auth.require_authentication():
+                self.tui.error("❌ Fingerprint authentication required to proceed")
+                if self.fingerprint_setup:
+                    self.fingerprint_setup.display_lockout_notice()
+                return False
+
+            self.fingerprint_auth.display_auth_status()
+            print()
+
         self.display_critical_warning()
 
         # Check authorization

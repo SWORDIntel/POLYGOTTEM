@@ -904,13 +904,15 @@ Main-Class: AutoExec
         return output
 
     def execute_guarantee_chain(self, payload: bytes,
-                               chain_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                               chain_config: Optional[Dict[str, Any]] = None,
+                               network_beacon: Optional[Any] = None) -> Dict[str, Any]:
         """
-        Execute payload using a GUARANTEE chain
+        Execute payload using a GUARANTEE chain with network beacon callbacks
 
         Args:
             payload: Payload bytes to execute
             chain_config: Chain configuration with method ordering
+            network_beacon: Optional network beacon for callback testing
 
         Returns:
             Dict with detailed chain execution results
@@ -969,6 +971,21 @@ Main-Class: AutoExec
                     'name': method.name,
                     'status': 'success'
                 })
+
+                # Send beacon callback if network beacon available
+                if network_beacon:
+                    beacon_data = {
+                        'method': method_id,
+                        'method_name': method.name,
+                        'file': file_path,
+                        'platform': method.platform.value,
+                        'reliability': method.reliability.name
+                    }
+                    network_beacon.send_beacon_callback(
+                        chain_config.get('chain_id', 'unknown'),
+                        method_id,
+                        additional_data=beacon_data
+                    )
 
             except Exception as e:
                 self.tui.error(f"Failed: {str(e)}")

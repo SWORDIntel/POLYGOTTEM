@@ -47,6 +47,14 @@ except ImportError:
     ValidationError = Exception
     FileOperationError = Exception
 
+# Import beacon integrator
+try:
+    from guarantee_beacon_integrator import BeaconIntegrator
+    BEACON_INTEGRATOR_AVAILABLE = True
+except ImportError:
+    BEACON_INTEGRATOR_AVAILABLE = False
+    BeaconIntegrator = None
+
 # Import VPS Geolocation Manager
 try:
     from vps_geo_manager import (
@@ -77,6 +85,24 @@ class EnhancedPolyglotOrchestrator:
         self.browser = FileBrowser(self.tui)
         self.optimizer = CascadeOptimizer(self.tui, use_acceleration=True)
         self.cmd_executor = CommandExecutor(self.tui)
+
+        # Initialize network beacon for testing
+        try:
+            from guarantee_network_beacon import GuaranteeNetworkBeacon
+            self.network_beacon = GuaranteeNetworkBeacon(self.tui)
+            self.tui.success("Network Beacon loaded for GUARANTEE testing")
+        except ImportError:
+            self.network_beacon = None
+            self.tui.warning("Network Beacon not available")
+
+        # Initialize beacon integrator for cross-component tracking
+        self.beacon_integrator = None
+        if BEACON_INTEGRATOR_AVAILABLE and BeaconIntegrator and self.network_beacon:
+            try:
+                self.beacon_integrator = BeaconIntegrator(self.network_beacon, self.tui)
+                self.tui.success("Beacon integrator loaded for cross-component tracking")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize beacon integrator: {e}")
 
         # Initialize VPS manager if available
         self.vps_manager = None
@@ -715,6 +741,44 @@ class EnhancedPolyglotOrchestrator:
             default=False
         )
 
+        # Network beacon testing (for GUARANTEE mode)
+        print()
+        config['network_beacon'] = self.menu.confirm(
+            "Enable Network Beacon for callback testing? (requires articbastion.duckdns.org)",
+            default=True
+        )
+
+        if config['network_beacon'] and self.network_beacon:
+            # Configure beacon endpoint
+            beacon_hostname = self.menu.prompt_input(
+                "Beacon endpoint hostname",
+                default="articbastion.duckdns.org"
+            )
+            beacon_port = self.menu.prompt_input(
+                "Beacon endpoint port",
+                default="443"
+            )
+            beacon_protocol = self.menu.prompt_input(
+                "Beacon protocol (https/http)",
+                default="https"
+            )
+
+            config['beacon_config'] = {
+                'hostname': beacon_hostname,
+                'port': int(beacon_port),
+                'protocol': beacon_protocol,
+                'enabled': True
+            }
+
+            # Configure beacon in network beacon manager
+            self.network_beacon.configure_beacon(
+                hostname=beacon_hostname,
+                port=int(beacon_port),
+                protocol=beacon_protocol
+            )
+        else:
+            config['beacon_config'] = None
+
         return config
 
     def _review_configuration(self,
@@ -778,6 +842,15 @@ class EnhancedPolyglotOrchestrator:
             strategy = "Adaptive (AI-optimized)"
 
         self.tui.info(f"🔄 Redundancy: {strategy}")
+
+        # Network beacon
+        print()
+        if redundancy_config.get('beacon_config'):
+            beacon_cfg = redundancy_config['beacon_config']
+            beacon_info = f"🌐 Network Beacon: {beacon_cfg['protocol']}://{beacon_cfg['hostname']}:{beacon_cfg['port']}"
+            self.tui.info(beacon_info)
+        else:
+            self.tui.info("🌐 Network Beacon: Disabled")
 
         print()
         return self.menu.confirm("Proceed with this configuration?", default=True)
