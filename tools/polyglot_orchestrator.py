@@ -16,7 +16,7 @@ Features:
 - Platform-aware method filtering and chaining
 
 Author: SWORDIntel
-Date: 2025-11-13
+Date: 2025-11-15
 Version: 2.0 (CHIMERA)
 """
 
