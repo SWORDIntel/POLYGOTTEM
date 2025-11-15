@@ -23,18 +23,22 @@ class DuckDNSIntegration:
     """Manages DuckDNS registration and SSH tunnel setup"""
 
     def __init__(self, domain: str = "polygottem.duckdns.org",
-                 api_token: str = "62414348-fa36-4a8c-8fc2-8b96ef48b3ea"):
+                 api_token: str = "62414348-fa36-4a8c-8fc2-8b96ef48b3ea",
+                 ssh_port: int = 22):
         """
         Initialize DuckDNS integration
 
         Args:
             domain: DuckDNS subdomain (e.g., "polygottem.duckdns.org")
             api_token: DuckDNS API token
+            ssh_port: SSH server port (default: 22)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
         self.api_token = api_token
+        self.ssh_port = ssh_port
         self.update_url = f"https://www.duckdns.org/update"
+        self.config_file = os.path.expanduser("~/.polygottem_duckdns.conf")
 
     def get_public_ip(self) -> Optional[str]:
         """
@@ -103,16 +107,19 @@ class DuckDNSIntegration:
             print(f"Error updating DuckDNS: {e}")
             return False
 
-    def setup_ssh_server(self, port: int = 22) -> bool:
+    def setup_ssh_server(self, port: Optional[int] = None) -> bool:
         """
-        Ensure SSH server is running
+        Ensure SSH server is running and configured
 
         Args:
-            port: SSH port (default: 22)
+            port: SSH port (uses self.ssh_port if not specified)
 
         Returns:
             True if SSH is running, False otherwise
         """
+        if port is None:
+            port = self.ssh_port
+
         try:
             # Check if SSH server is running
             result = subprocess.run(
@@ -121,11 +128,34 @@ class DuckDNSIntegration:
                 text=True
             )
 
+            service_name = None
             if result.returncode == 0 and result.stdout.strip() == 'active':
-                print(f"✓ SSH server is running on port {port}")
-                return True
+                service_name = 'ssh'
+            else:
+                # Try sshd
+                result = subprocess.run(
+                    ['systemctl', 'is-active', 'sshd'],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout.strip() == 'active':
+                    service_name = 'sshd'
 
-            # Try alternative service names
+            if service_name:
+                print(f"✓ SSH server is running ({service_name})")
+
+                # Verify port is listening
+                if self._verify_ssh_port(port):
+                    print(f"✓ SSH listening on port {port}")
+                    return True
+                else:
+                    print(f"⚠ SSH running but not listening on port {port}")
+                    if port != 22:
+                        print(f"  Note: Custom port {port} may require configuration")
+                    return True  # Still return True if service is running
+
+            # Try to start SSH server
+            print("⚠ SSH server not running, attempting to start...")
             for service in ['ssh', 'sshd']:
                 try:
                     subprocess.run(
@@ -134,15 +164,63 @@ class DuckDNSIntegration:
                         capture_output=True
                     )
                     print(f"✓ SSH server started ({service})")
+
+                    # Enable on boot
+                    try:
+                        subprocess.run(
+                            ['sudo', 'systemctl', 'enable', service],
+                            check=False,
+                            capture_output=True
+                        )
+                    except:
+                        pass
+
                     return True
                 except:
                     continue
 
-            print("⚠ Could not start SSH server (may need manual start)")
+            print("✗ Could not start SSH server")
+            print("  Manual start required: sudo systemctl start ssh")
             return False
 
         except Exception as e:
             print(f"Error checking SSH server: {e}")
+            return False
+
+    def _verify_ssh_port(self, port: int) -> bool:
+        """
+        Verify SSH is listening on specified port
+
+        Args:
+            port: Port to check
+
+        Returns:
+            True if port is listening
+        """
+        try:
+            # Use ss or netstat to check port
+            result = subprocess.run(
+                ['ss', '-tln'],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                # Check if port is in output
+                return f':{port}' in result.stdout
+
+            # Fallback to netstat
+            result = subprocess.run(
+                ['netstat', '-tln'],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                return f':{port}' in result.stdout
+
+            return False
+        except:
             return False
 
     def get_ssh_connection_info(self) -> Dict[str, str]:
@@ -159,12 +237,18 @@ class DuckDNSIntegration:
             # Get public IP
             public_ip = self.get_public_ip()
 
+            # Build connection string with port
+            if self.ssh_port != 22:
+                connection_string = f"ssh -p {self.ssh_port} {username}@{self.full_domain}"
+            else:
+                connection_string = f"ssh {username}@{self.full_domain}"
+
             info = {
                 'domain': self.full_domain,
                 'ip': public_ip or 'Unknown',
                 'username': username,
-                'port': '22',
-                'connection_string': f"ssh {username}@{self.full_domain}",
+                'port': str(self.ssh_port),
+                'connection_string': connection_string,
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
@@ -172,6 +256,53 @@ class DuckDNSIntegration:
 
         except Exception as e:
             print(f"Error getting SSH info: {e}")
+            return {}
+
+    def save_configuration(self) -> bool:
+        """
+        Save current configuration to file
+
+        Returns:
+            True if successful
+        """
+        try:
+            config = {
+                'domain': self.full_domain,
+                'port': self.ssh_port,
+                'last_ip': self.get_public_ip(),
+                'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+            with open(self.config_file, 'w') as f:
+                for key, value in config.items():
+                    f.write(f"{key}={value}\n")
+
+            return True
+        except Exception as e:
+            print(f"⚠ Could not save configuration: {e}")
+            return False
+
+    def load_configuration(self) -> Dict[str, str]:
+        """
+        Load saved configuration
+
+        Returns:
+            Configuration dictionary
+        """
+        try:
+            if not os.path.exists(self.config_file):
+                return {}
+
+            config = {}
+            with open(self.config_file, 'r') as f:
+                for line in f:
+                    if '=' in line:
+                        key, value = line.strip().split('=', 1)
+                        config[key] = value
+
+            return config
+        except Exception as e:
+            print(f"⚠ Could not load configuration: {e}")
             return {}
 
     def setup_autossh_tunnel(self, remote_host: str, remote_port: int = 2222,
@@ -231,20 +362,32 @@ class DuckDNSIntegration:
         print("="*70 + "\n")
 
         # Step 1: Update DuckDNS
-        print("[1/3] Updating DuckDNS...")
+        print("[1/4] Updating DuckDNS...")
         if not self.update_duckdns():
             print("⚠ DuckDNS update failed, continuing anyway...")
 
         print()
 
         # Step 2: Setup SSH
-        print("[2/3] Setting up SSH server...")
-        self.setup_ssh_server()
+        print("[2/4] Setting up SSH server...")
+        ssh_success = self.setup_ssh_server()
 
         print()
 
-        # Step 3: Show connection info
-        print("[3/3] SSH Connection Information:")
+        # Step 3: Verify configuration
+        print("[3/4] Verifying configuration...")
+        port_verified = self._verify_ssh_port(self.ssh_port)
+        if port_verified:
+            print(f"✓ SSH port {self.ssh_port} is accessible")
+        else:
+            print(f"⚠ SSH port {self.ssh_port} verification failed")
+            if self.ssh_port != 22:
+                print(f"  Custom port may need firewall configuration")
+
+        print()
+
+        # Step 4: Show connection info
+        print("[4/4] SSH Connection Information:")
         print("-" * 70)
 
         info = self.get_ssh_connection_info()
@@ -260,12 +403,42 @@ class DuckDNSIntegration:
         print("-" * 70)
         print()
 
+        # Save configuration
+        if self.save_configuration():
+            print(f"✓ Configuration saved to {self.config_file}")
+        print()
+
         print("✓ Setup complete!")
         print()
         print("To connect remotely:")
         print(f"  {info.get('connection_string', 'ssh <user>@' + self.full_domain)}")
         print()
-        print("⚠ Make sure your firewall allows SSH connections (port 22)")
+
+        # Port-specific firewall instructions
+        print("⚠ FIREWALL CONFIGURATION REQUIRED:")
+        print(f"  Port {self.ssh_port} must be accessible from the internet")
+        print()
+
+        if self.ssh_port == 22:
+            print("  Ubuntu/Debian:")
+            print("    sudo ufw allow 22/tcp")
+            print()
+            print("  Fedora/RHEL:")
+            print("    sudo firewall-cmd --add-service=ssh --permanent")
+            print("    sudo firewall-cmd --reload")
+        else:
+            print(f"  Ubuntu/Debian:")
+            print(f"    sudo ufw allow {self.ssh_port}/tcp")
+            print()
+            print(f"  Fedora/RHEL:")
+            print(f"    sudo firewall-cmd --add-port={self.ssh_port}/tcp --permanent")
+            print(f"    sudo firewall-cmd --reload")
+
+        print()
+
+        # Router/NAT port forwarding
+        print("  If behind NAT/router, configure port forwarding:")
+        print(f"    External port {self.ssh_port} → Internal IP:{self.ssh_port}")
         print()
 
         return True
@@ -298,11 +471,17 @@ def main():
         type=str,
         help='Manually specify IP address'
     )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=22,
+        help='SSH port (default: 22)'
+    )
 
     args = parser.parse_args()
 
-    # Initialize integration
-    duckdns = DuckDNSIntegration()
+    # Initialize integration with custom port
+    duckdns = DuckDNSIntegration(ssh_port=args.port)
 
     if args.update:
         duckdns.update_duckdns(args.ip)
@@ -311,13 +490,21 @@ def main():
     elif args.full:
         duckdns.register_and_connect()
     else:
-        # Default: show current info
-        print("\nCurrent SSH Connection Info:")
-        print("="*70)
-        info = duckdns.get_ssh_connection_info()
-        for key, value in info.items():
-            print(f"  {key:20}: {value}")
-        print("="*70)
+        # Default: show current info or load from config
+        config = duckdns.load_configuration()
+        if config:
+            print("\nSaved Configuration:")
+            print("="*70)
+            for key, value in config.items():
+                print(f"  {key:20}: {value}")
+            print("="*70)
+        else:
+            print("\nCurrent SSH Connection Info:")
+            print("="*70)
+            info = duckdns.get_ssh_connection_info()
+            for key, value in info.items():
+                print(f"  {key:20}: {value}")
+            print("="*70)
         print("\nUse --help for more options")
 
 

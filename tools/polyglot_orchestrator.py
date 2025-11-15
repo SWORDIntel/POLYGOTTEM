@@ -59,7 +59,7 @@ class PolyglotOrchestrator:
         self.chain_analyzer = CVEChainAnalyzer()
         self.polyglot_gen = MultiCVEPolyglot(tui=self.tui)
         self.exploit_gen = ExploitHeaderGenerator(verbose=verbose)
-        self.duckdns = DuckDNSIntegration()
+        self.duckdns = None  # Initialize on demand
 
         # Operation tracking (Vault7-style)
         self.operation_id = self.opsec.generate_operation_id("POLYGOTTEM")
@@ -1454,7 +1454,27 @@ sudo /usr/local/bin/cpu_desync_macos
 
         if self.menu.confirm("Setup remote access?", default=False):
             try:
+                # Prompt for SSH port
+                port_input = self.menu.prompt_input(
+                    "SSH port (default: 22, custom: e.g., 2222)",
+                    default="22"
+                )
+
+                try:
+                    ssh_port = int(port_input) if port_input else 22
+                    if ssh_port < 1 or ssh_port > 65535:
+                        self.tui.warning(f"Invalid port {ssh_port}, using default 22")
+                        ssh_port = 22
+                except ValueError:
+                    self.tui.warning(f"Invalid port '{port_input}', using default 22")
+                    ssh_port = 22
+
+                # Initialize DuckDNS with custom port
+                self.duckdns = DuckDNSIntegration(ssh_port=ssh_port)
+
+                # Register and connect
                 self.duckdns.register_and_connect()
+
             except Exception as e:
                 self.tui.error(f"Remote access setup failed: {e}")
                 self.tui.info("You can manually setup later with:")
