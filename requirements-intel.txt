@@ -16,15 +16,18 @@ openvino>=2024.0.0
 
 # Intel Level Zero - Low-latency GPU access for Intel Arc iGPU
 # Direct hardware access for Arc Graphics (Xe-LPG)
-level-zero>=1.14.0
+# NOTE: Level Zero is a SYSTEM package, install via:
+#   Ubuntu/Debian: sudo apt install intel-level-zero-gpu level-zero
+#   Fedora/RHEL: sudo dnf install level-zero
+# PyOpenCL will automatically use Level Zero if available
 
-# PyOpenCL - Fallback GPU acceleration
-# Works with Intel Arc and other OpenCL-compatible GPUs
+# PyOpenCL - GPU acceleration for Intel Arc and OpenCL-compatible GPUs
+# Works with Intel Arc iGPU and other OpenCL devices
 pyopencl>=2024.1
 
-# Intel Extension for Python - Optimized NumPy/SciPy operations
-# Automatically accelerates NumPy on Intel hardware
-intel-extension-for-python>=2.1.0
+# Intel Extension for Scikit-learn - Optimized NumPy/SciPy operations
+# Automatically accelerates NumPy/SciPy operations on Intel hardware
+scikit-learn-intelex>=2024.0
 
 # Intel Neural Compressor - Model optimization for NPU
 # Further optimizations for AI workloads on NPU
