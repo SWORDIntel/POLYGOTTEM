@@ -610,6 +610,39 @@ class CascadeOptimizer:
         # Save history
         self._save_history()
 
+    def create_guarantee_chain(self,
+                              available_methods: List[str],
+                              method_definitions: Dict[str, Any],
+                              max_chain_length: int = 10) -> Optional[Dict[str, Any]]:
+        """
+        Create a GUARANTEE chain that combines multiple methods for maximum coverage
+
+        Args:
+            available_methods: List of available method IDs
+            method_definitions: Dict of method definitions
+            max_chain_length: Maximum methods to chain
+
+        Returns:
+            Dict with guarantee chain info or None
+        """
+        try:
+            from tools.guarantee_chainer import GuaranteeChainer
+
+            chainer = GuaranteeChainer(self.tui, method_definitions)
+            chain = chainer.create_guarantee_chain(available_methods, max_chain_length)
+
+            if chain:
+                return chainer.get_chain_summary(chain)
+
+            return None
+
+        except ImportError:
+            self.tui.warning("Guarantee chainer not available")
+            return None
+        except Exception as e:
+            self.tui.error(f"Failed to create guarantee chain: {e}")
+            return None
+
 
 if __name__ == '__main__':
     # Demo cascade optimizer
