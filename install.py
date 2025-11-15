@@ -48,11 +48,11 @@ def run_windows_installer():
 
 def run_unix_installer():
     """Run Unix/Linux/macOS installer"""
-    installer_path = Path(__file__).parent / "install.sh"
+    installer_path = Path(__file__).parent / "installers" / "install.sh"
 
     if not installer_path.exists():
         print(f"❌ ERROR: Unix installer not found at {installer_path}")
-        print("   Please ensure 'install.sh' exists")
+        print("   Please ensure 'installers/install.sh' exists")
         return False
 
     system = platform.system()
@@ -96,8 +96,8 @@ def main():
         print("  ✓ Installation completed successfully!")
         print("=" * 63)
         print("\n📚 Next steps:")
-        print("   • ./launch.sh              (Linux/macOS)")
-        print("   • launch.bat               (Windows)")
+        print("   • ./launch.py              (Launch POLYGOTTEM)")
+        print("   • ./polygottem.py --help   (Show help)")
         print()
         return 0
     else:

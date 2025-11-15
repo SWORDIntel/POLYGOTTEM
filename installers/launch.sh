@@ -4,6 +4,9 @@
 
 set -e  # Exit on error
 
+# Navigate to the root directory (parent of installers/)
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -31,10 +34,10 @@ if [ ! -d "$VENV_DIR" ]; then
     print_msg "$RED" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
     print_msg "$YELLOW" "Please run the installer first:"
-    print_msg "$YELLOW" "  ./install.sh"
+    print_msg "$YELLOW" "  ./install.py"
     echo
     print_msg "$YELLOW" "Or for Intel Meteor Lake optimization:"
-    print_msg "$YELLOW" "  ./install.sh --intel"
+    print_msg "$YELLOW" "  ./install.py --intel"
     echo
     exit 1
 fi
@@ -185,7 +188,7 @@ if [ "$SHOW_HELP" = true ]; then
     print_msg "$BLUE" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
     print_msg "$GREEN" "Usage:"
-    print_msg "$GREEN" "  ./launch.sh [options]"
+    print_msg "$GREEN" "  ./launch.py [options]"
     echo
     print_msg "$YELLOW" "Launch Options:"
     print_msg "$YELLOW" "  --help, -h              Show this help message"
@@ -198,13 +201,13 @@ if [ "$SHOW_HELP" = true ]; then
     print_msg "$YELLOW" "  --clear-config          Reset configuration to defaults"
     echo
     print_msg "$YELLOW" "Examples:"
-    print_msg "$YELLOW" "  ./launch.sh                           # Launch POLYGOTTEM TUI"
-    print_msg "$YELLOW" "  ./launch.sh --set-interactive         # Set interactive mode default"
-    print_msg "$YELLOW" "  ./launch.sh --set-intel               # Enable Intel acceleration"
-    print_msg "$YELLOW" "  ./launch.sh --set-interactive --set-intel  # Set both defaults"
-    print_msg "$YELLOW" "  ./launch.sh --show-config             # View current settings"
-    print_msg "$YELLOW" "  ./launch.sh --clear-config            # Reset to defaults"
-    print_msg "$YELLOW" "  ./launch.sh --benchmark               # Run performance tests"
+    print_msg "$YELLOW" "  ./launch.py                           # Launch POLYGOTTEM TUI"
+    print_msg "$YELLOW" "  ./launch.py --set-interactive         # Set interactive mode default"
+    print_msg "$YELLOW" "  ./launch.py --set-intel               # Enable Intel acceleration"
+    print_msg "$YELLOW" "  ./launch.py --set-interactive --set-intel  # Set both defaults"
+    print_msg "$YELLOW" "  ./launch.py --show-config             # View current settings"
+    print_msg "$YELLOW" "  ./launch.py --clear-config            # Reset to defaults"
+    print_msg "$YELLOW" "  ./launch.py --benchmark               # Run performance tests"
     echo
     print_msg "$BLUE" "Documentation:"
     print_msg "$BLUE" "  See docs/guides/ for detailed documentation"
