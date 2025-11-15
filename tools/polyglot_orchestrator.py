@@ -54,6 +54,16 @@ except ImportError:
     BEACON_AVAILABLE = False
     BeaconIntegrator = None
 
+# Try to import C methods integration
+try:
+    from c_methods_tui_integration import CMethodsTUIWorkflows
+    from c_methods_autoexec_bridge import CMethodsAutoExecBridge
+    C_METHODS_AVAILABLE = True
+except ImportError:
+    C_METHODS_AVAILABLE = False
+    CMethodsTUIWorkflows = None
+    CMethodsAutoExecBridge = None
+
 
 class PolyglotOrchestrator:
     """Main orchestrator for polyglot generation and auto-execution"""
@@ -90,6 +100,20 @@ class PolyglotOrchestrator:
                 self.tui.success("Beacon integrator initialized for cross-component tracking")
             except Exception as e:
                 self.tui.warning(f"Could not initialize beacon integrator: {e}")
+
+        # Initialize C methods TUI workflows if available
+        self.c_methods_workflows = None
+        self.c_bridge = None
+        if C_METHODS_AVAILABLE and CMethodsTUIWorkflows and CMethodsAutoExecBridge:
+            try:
+                self.c_methods_workflows = CMethodsTUIWorkflows(tui=self.tui)
+                self.c_bridge = CMethodsAutoExecBridge(verbose=False)
+                if self.c_bridge.is_available():
+                    self.tui.success("C Methods Framework integrated with GUARANTEE")
+                else:
+                    self.tui.warning("C Methods Framework available but not compiled")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize C Methods: {e}")
 
     def _init_campaign_directory(self) -> str:
         """
@@ -151,9 +175,11 @@ class PolyglotOrchestrator:
             self._workflow_apt41_replication()
         elif workflow == 4:  # Platform Attack Chain
             self._workflow_platform_chain()
-        elif workflow == 5:  # Custom (original flow)
+        elif workflow == 5:  # C Methods Exploitation
+            self._workflow_c_methods()
+        elif workflow == 6:  # Custom (original flow)
             self._workflow_custom()
-        elif workflow == 6:  # Final - CPU Desync Test
+        elif workflow == 7:  # Final - CPU Desync Test
             self._workflow_cpu_desync_test()
         else:
             self.tui.warning("Invalid selection, exiting")
@@ -379,6 +405,11 @@ fi
                 'label': '📱 Platform Attack Chain',
                 'description': 'iOS/Android/Windows specific exploit chains',
                 'color': Colors.BRIGHT_MAGENTA
+            },
+            {
+                'label': '⚙️ C Methods Exploitation',
+                'description': 'Native C-based exploitation methods (kernel, memory, obfuscation)',
+                'color': Colors.BRIGHT_BLUE
             },
             {
                 'label': '🎨 Custom Workflow',
@@ -738,6 +769,77 @@ fi
 
         except Exception as e:
             self.tui.error(f"Chain generation failed: {e}")
+
+    def _workflow_c_methods(self):
+        """C Methods exploitation workflow"""
+        self.tui.section("⚙️ C Methods Exploitation")
+
+        # Check if C methods are available
+        if not self.c_methods_workflows:
+            self.tui.error("C Methods Framework not available")
+            self.tui.info("Ensure C framework is compiled: python tools/guarantee_c_compiler.py --compile")
+            return
+
+        if not self.c_bridge or not self.c_bridge.is_available():
+            self.tui.error("C Methods not compiled. Compile first with:")
+            self.tui.print("  python tools/guarantee_c_compiler.py --compile")
+            return
+
+        # Show C methods banner and run interactive workflows
+        self.tui.success("C Methods Framework initialized")
+
+        # Prompt for workflow type
+        workflow_options = [
+            "⚡ Quick Exploitation (Select method → Execute)",
+            "🔍 Analysis (View all methods for platform)",
+            "⚙️ Advanced Configuration (Chain methods)",
+            "📋 List All Methods",
+        ]
+
+        selection = self.menu.show_menu(workflow_options, "C Methods Workflow")
+        if selection is None:
+            return
+
+        if selection == 0:  # Quick Exploit
+            self.c_methods_workflows.workflow_c_method_quick_exploit()
+
+        elif selection == 1:  # Analysis
+            self.c_methods_workflows.workflow_c_method_analysis()
+
+        elif selection == 2:  # Advanced
+            self.c_methods_workflows.workflow_c_method_advanced()
+
+        elif selection == 3:  # List All
+            methods = self.c_bridge.list_methods()
+            import json
+            self.tui.print(json.dumps(methods, indent=2))
+
+        # Offer to integrate results with GUARANTEE chaining
+        self.tui.print()
+        if self.menu.confirm("Integrate C methods with GUARANTEE chaining?", default=False):
+            self.tui.info("Launching GUARANTEE chainer with C methods enabled...")
+            self._launch_guarantee_chainer_with_c_methods()
+
+    def _launch_guarantee_chainer_with_c_methods(self):
+        """Launch GUARANTEE chainer with C methods pre-integrated"""
+        try:
+            from guarantee_chainer import GuaranteeChainer
+            from guarantee_c_integration import integrate_c_methods
+
+            chainer = GuaranteeChainer(tui=self.tui)
+            chainer = integrate_c_methods(chainer, verbose=True)
+
+            self.tui.success("C methods integrated with GUARANTEE chainer")
+            self.tui.info("Launching chainer...")
+
+            # Show available chains
+            if hasattr(chainer, 'method_info'):
+                c_methods_count = len([m for m in chainer.method_info
+                                      if str(m).startswith('c_')])
+                self.tui.success(f"Added {c_methods_count} C methods to chainer")
+
+        except Exception as e:
+            self.tui.error(f"Failed to integrate with GUARANTEE: {e}")
 
     def _workflow_cpu_desync_test(self):
         """Final workflow: CPU clock desynchronization resilience test"""
