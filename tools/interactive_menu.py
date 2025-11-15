@@ -16,23 +16,46 @@ Date: 2025-11-11
 """
 
 import sys
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from tui_helper import TUI, Colors, Symbols
 
 
 class InteractiveMenu:
-    """Interactive menu with multi-choice selection support"""
+    """Interactive menu with multi-choice selection support and screen clearing"""
 
-    def __init__(self, tui: Optional[TUI] = None):
+    def __init__(self, tui: Optional[TUI] = None, auto_clear: bool = True):
         """
         Initialize interactive menu
 
         Args:
             tui: TUI instance (creates new if None)
+            auto_clear: Automatically clear screen between menu selections
         """
         self.tui = tui if tui else TUI()
         self.colors = Colors()
         self.symbols = Symbols()
+        self.auto_clear = auto_clear
+
+    def clear_screen(self):
+        """
+        Clear the terminal screen
+
+        Uses platform-appropriate clear command:
+        - Linux/macOS: clear or tput reset
+        - Windows: cls
+        """
+        try:
+            # Try ANSI escape sequence (works on most modern terminals)
+            if sys.stdout.isatty():
+                print('\033[2J\033[H', end='')
+                sys.stdout.flush()
+            else:
+                # Fallback to system command
+                os.system('clear' if os.name != 'nt' else 'cls')
+        except Exception:
+            # If all else fails, print newlines
+            print('\n' * 100)
 
     def multi_select(self,
                      title: str,
@@ -83,6 +106,10 @@ class InteractiveMenu:
         """Simple numbered multi-select (fallback when curses unavailable)"""
 
         while True:
+            # Clear screen for clean menu display
+            if self.auto_clear:
+                self.clear_screen()
+
             # Display options
             print(self.tui.colorize("\nCurrent Selection:", self.colors.CYAN, bold=True))
             for i, opt in enumerate(options):
@@ -279,6 +306,10 @@ class InteractiveMenu:
         selected = default if default is not None else 0
 
         while True:
+            # Clear screen for clean menu display
+            if self.auto_clear:
+                self.clear_screen()
+
             # Display options
             for i, opt in enumerate(options):
                 disabled = opt.get('disabled', False)
@@ -385,6 +416,33 @@ class InteractiveMenu:
                     continue
 
             return value
+
+    def display_final_output(self, title: str, content: List[str] = None, clear_first: bool = True):
+        """
+        Display final output/summary without clearing after
+
+        Args:
+            title: Output title
+            content: List of content lines to display
+            clear_first: Clear screen before showing final output (default: True)
+
+        This is typically used for the final step to show complete information
+        without the screen being cleared afterward.
+        """
+        if clear_first:
+            self.clear_screen()
+
+        # Display header
+        self.tui.section(title)
+        print()
+
+        # Display content if provided
+        if content:
+            for line in content:
+                print(line)
+            print()
+
+        # Note: No screen clear after this - final output stays visible
 
     def _check_curses(self) -> bool:
         """Check if curses is available and terminal supports it"""

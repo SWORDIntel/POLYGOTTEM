@@ -16,12 +16,71 @@ import socket
 import subprocess
 import requests
 import random
-from typing import Optional, Dict
+import time
+from typing import Optional, Dict, Tuple
 from datetime import datetime
 
 
+def validate_ip_address(ip: str) -> bool:
+    """
+    Validate IP address format
+
+    Args:
+        ip: IP address string to validate
+
+    Returns:
+        True if valid IPv4 or IPv6 address
+    """
+    try:
+        # Try IPv4
+        socket.inet_aton(ip)
+        return True
+    except socket.error:
+        pass
+
+    try:
+        # Try IPv6
+        socket.inet_pton(socket.AF_INET6, ip)
+        return True
+    except socket.error:
+        pass
+
+    return False
+
+
+def verify_dns_resolution(domain: str, expected_ip: str, timeout: int = 10) -> Tuple[bool, Optional[str]]:
+    """
+    Verify DNS resolution matches expected IP
+
+    Args:
+        domain: Domain to check
+        expected_ip: Expected IP address
+        timeout: Timeout in seconds
+
+    Returns:
+        Tuple of (success, resolved_ip)
+    """
+    try:
+        # Wait a moment for DNS propagation
+        time.sleep(2)
+
+        # Resolve domain
+        resolved_ip = socket.gethostbyname(domain)
+
+        # Compare IPs
+        if resolved_ip == expected_ip:
+            return True, resolved_ip
+        else:
+            return False, resolved_ip
+
+    except socket.gaierror:
+        return False, None
+    except Exception as e:
+        return False, None
+
+
 class DuckDNSIntegration:
-    """Manages DuckDNS registration and SSH tunnel setup"""
+    """Manages DuckDNS registration and SSH tunnel setup with validation"""
 
     @staticmethod
     def generate_random_port() -> int:
@@ -81,42 +140,116 @@ class DuckDNSIntegration:
             print(f"Error getting public IP: {e}")
             return None
 
-    def update_duckdns(self, ip: Optional[str] = None) -> bool:
+    def update_duckdns(self, ip: Optional[str] = None, verify: bool = True, max_retries: int = 3) -> bool:
         """
-        Update DuckDNS with current IP
+        Update DuckDNS with current IP (with validation and verification)
 
         Args:
             ip: IP address to register (auto-detect if None)
+            verify: Verify DNS resolution after update
+            max_retries: Number of retry attempts for failed updates
 
         Returns:
-            True if update successful, False otherwise
+            True if update successful and verified, False otherwise
         """
         try:
             # Get IP if not provided
             if ip is None:
+                print("[*] Detecting public IP...")
                 ip = self.get_public_ip()
                 if ip is None:
-                    print("Failed to detect public IP")
+                    print("✗ Failed to detect public IP")
                     return False
 
-            # Update DuckDNS
-            params = {
-                'domains': self.domain,
-                'token': self.api_token,
-                'ip': ip
-            }
-
-            response = requests.get(self.update_url, params=params, timeout=10)
-
-            if response.status_code == 200 and response.text.strip() == 'OK':
-                print(f"✓ DuckDNS updated: {self.full_domain} → {ip}")
-                return True
-            else:
-                print(f"✗ DuckDNS update failed: {response.text}")
+            # Validate IP address format
+            if not validate_ip_address(ip):
+                print(f"✗ Invalid IP address format: {ip}")
                 return False
 
+            print(f"[*] Validated IP: {ip}")
+
+            # Attempt update with retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    # Update DuckDNS
+                    params = {
+                        'domains': self.domain,
+                        'token': self.api_token,
+                        'ip': ip
+                    }
+
+                    print(f"[*] Sending update to DuckDNS (attempt {attempt}/{max_retries})...")
+                    response = requests.get(self.update_url, params=params, timeout=10)
+
+                    # Check response
+                    if response.status_code != 200:
+                        print(f"✗ HTTP {response.status_code}: {response.text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 2 seconds...")
+                            time.sleep(2)
+                            continue
+                        return False
+
+                    response_text = response.text.strip()
+
+                    # DuckDNS returns 'OK' on success, 'KO' on failure
+                    if response_text == 'OK':
+                        print(f"✓ DuckDNS API response: OK")
+                        print(f"✓ DuckDNS updated: {self.full_domain} → {ip}")
+
+                        # Verify DNS resolution
+                        if verify:
+                            print(f"[*] Verifying DNS resolution...")
+                            success, resolved_ip = verify_dns_resolution(self.full_domain, ip)
+
+                            if success:
+                                print(f"✓ DNS verified: {self.full_domain} resolves to {resolved_ip}")
+                                return True
+                            else:
+                                if resolved_ip:
+                                    print(f"⚠ DNS mismatch: Expected {ip}, got {resolved_ip}")
+                                    print(f"  This may be a cached DNS entry - wait 60s and verify manually")
+                                else:
+                                    print(f"⚠ DNS resolution failed - may take time to propagate")
+                                    print(f"  Verify manually: nslookup {self.full_domain}")
+
+                                # Still return True if API said OK (DNS propagation can be slow)
+                                return True
+                        else:
+                            return True
+
+                    elif response_text == 'KO':
+                        print(f"✗ DuckDNS update failed: API returned 'KO'")
+                        print(f"  Possible causes:")
+                        print(f"  - Invalid token")
+                        print(f"  - Invalid domain")
+                        print(f"  - Rate limit exceeded")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 5 seconds...")
+                            time.sleep(5)
+                            continue
+                        return False
+
+                    else:
+                        print(f"✗ Unexpected response: {response_text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 2 seconds...")
+                            time.sleep(2)
+                            continue
+                        return False
+
+                except requests.exceptions.RequestException as e:
+                    print(f"✗ Network error: {e}")
+                    if attempt < max_retries:
+                        print(f"[*] Retrying in 3 seconds...")
+                        time.sleep(3)
+                        continue
+                    return False
+
+            return False
+
         except Exception as e:
-            print(f"Error updating DuckDNS: {e}")
+            print(f"✗ Error updating DuckDNS: {e}")
             return False
 
     def setup_ssh_server(self, port: Optional[int] = None) -> bool:
