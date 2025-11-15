@@ -292,20 +292,14 @@ fi
 # Full Intel installation
 if [ "$INTEL_ALL" = true ]; then
     print_msg "$RED" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_msg "$RED" "  WARNING: Full Intel Optimization"
+    print_msg "$RED" "  Full Intel Optimization Selected"
     print_msg "$RED" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_msg "$YELLOW" "This will download 1-5GB of packages and take 10-30 minutes!"
+    print_msg "$YELLOW" "Downloading 1-5GB of packages (this may take 10-30 minutes)"
     print_msg "$YELLOW" "Packages: OpenVINO, PyOpenCL, Intel Scikit-learn Extension, Neural Compressor"
     print_msg "$BLUE" "Note: Level Zero must be installed separately as a system package"
     echo
-    read -p "$(echo -e ${RED}Continue? [y/N]: ${NC})" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_msg "$BLUE" "Installing all Intel packages... Please be patient."
-        pip install -r requirements-intel.txt && print_msg "$GREEN" "✓ All Intel packages installed" || print_msg "$RED" "✗ Some packages failed"
-    else
-        print_msg "$YELLOW" "Installation cancelled."
-    fi
+    print_msg "$BLUE" "Installing all Intel packages... Please be patient."
+    pip install -r requirements-intel.txt && print_msg "$GREEN" "✓ All Intel packages installed" || print_msg "$RED" "✗ Some packages failed"
 fi
 echo
 
