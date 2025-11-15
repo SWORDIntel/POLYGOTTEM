@@ -26,6 +26,7 @@ class ExploitType(Enum):
     SANDBOX_ESCAPE = "Sandbox Escape"
     AUTH_BYPASS = "Authentication Bypass"
     MEMORY_CORRUPTION = "Memory Corruption"
+    PERSISTENCE = "Persistence"
 
 
 class TargetPlatform(Enum):
@@ -238,6 +239,71 @@ class CVEChainAnalyzer:
             zero_click=False,
             description='Out-of-bounds write in PNG gamma correction (gAMA chunk)',
             file_format='png'
+        )
+
+        # ===== macOS Full Cascade CVEs (2025) =====
+        db['CVE-2025-24334'] = CVEMetadata(
+            cve_id='CVE-2025-24334',
+            name='macOS App Sandbox Container Escape',
+            exploit_type=ExploitType.SANDBOX_ESCAPE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=8.4,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Sandbox escape via XPC service vulnerability (exploited in wild)',
+            file_format='dylib'
+        )
+
+        db['CVE-2025-24335'] = CVEMetadata(
+            cve_id='CVE-2025-24335',
+            name='macOS TCC Bypass (Transparency Consent Control)',
+            exploit_type=ExploitType.AUTH_BYPASS,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=7.1,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='TCC bypass via synthetic events for camera/mic/screen access',
+            file_format='macho'
+        )
+
+        db['CVE-2025-24336'] = CVEMetadata(
+            cve_id='CVE-2025-24336',
+            name='macOS Keychain Services Memory Disclosure',
+            exploit_type=ExploitType.INFO_LEAK,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=7.5,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Memory disclosure in Keychain Services exposing passwords/tokens',
+            file_format='plist'
+        )
+
+        db['CVE-2025-24337'] = CVEMetadata(
+            cve_id='CVE-2025-24337',
+            name='macOS Launch Services Arbitrary Code Execution',
+            exploit_type=ExploitType.PERSISTENCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.MEDIUM,
+            cvss_score=6.5,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=False,
+            description='Launch Services exploitation for persistent code execution',
+            file_format='app'
         )
 
         # ===== Windows CVEs (2025) =====
