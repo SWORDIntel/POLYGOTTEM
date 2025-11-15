@@ -44,6 +44,7 @@ from operational_security import OperationalSecurity
 from cve_chain_analyzer import CVEChainAnalyzer, TargetPlatform
 from multi_cve_polyglot import MultiCVEPolyglot
 from exploit_header_generator import ExploitHeaderGenerator
+from duckdns_integration import DuckDNSIntegration
 
 
 class PolyglotOrchestrator:
@@ -58,6 +59,7 @@ class PolyglotOrchestrator:
         self.chain_analyzer = CVEChainAnalyzer()
         self.polyglot_gen = MultiCVEPolyglot(tui=self.tui)
         self.exploit_gen = ExploitHeaderGenerator(verbose=verbose)
+        self.duckdns = DuckDNSIntegration()
 
         # Operation tracking (Vault7-style)
         self.operation_id = self.opsec.generate_operation_id("POLYGOTTEM")
@@ -94,6 +96,9 @@ class PolyglotOrchestrator:
         else:
             self.tui.warning("Invalid selection, exiting")
             return
+
+        # Offer remote access setup
+        self._offer_duckdns_registration()
 
         # Show operation summary
         self._show_operation_summary()
@@ -1434,6 +1439,28 @@ sudo /usr/local/bin/cpu_desync_macos
                 self.tui.list_item(f"{artifact} ({size_kb:.1f} KB)", level=1)
 
         self.tui.success(f"Operation {self.operation_id} complete!")
+
+    def _offer_duckdns_registration(self):
+        """Offer DuckDNS registration and SSH setup"""
+        print()
+        print()
+        self.tui.section("🌐 Remote Access Setup")
+
+        self.tui.info("Enable remote SSH access via DuckDNS?")
+        self.tui.list_item("Register IP with polygottem.duckdns.org", level=1)
+        self.tui.list_item("Setup SSH server for remote access", level=1)
+        self.tui.list_item("Get connection information", level=1)
+        print()
+
+        if self.menu.confirm("Setup remote access?", default=False):
+            try:
+                self.duckdns.register_and_connect()
+            except Exception as e:
+                self.tui.error(f"Remote access setup failed: {e}")
+                self.tui.info("You can manually setup later with:")
+                self.tui.list_item("python3 tools/duckdns_integration.py --full", level=1)
+        else:
+            self.tui.info("Skipping remote access setup")
 
     def _prompt_cve_selection(self) -> Optional[str]:
         """Prompt for single CVE selection"""
