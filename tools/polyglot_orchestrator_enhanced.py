@@ -47,6 +47,14 @@ except ImportError:
     ValidationError = Exception
     FileOperationError = Exception
 
+# Import beacon integrator
+try:
+    from guarantee_beacon_integrator import BeaconIntegrator
+    BEACON_INTEGRATOR_AVAILABLE = True
+except ImportError:
+    BEACON_INTEGRATOR_AVAILABLE = False
+    BeaconIntegrator = None
+
 # Import VPS Geolocation Manager
 try:
     from vps_geo_manager import (
@@ -86,6 +94,15 @@ class EnhancedPolyglotOrchestrator:
         except ImportError:
             self.network_beacon = None
             self.tui.warning("Network Beacon not available")
+
+        # Initialize beacon integrator for cross-component tracking
+        self.beacon_integrator = None
+        if BEACON_INTEGRATOR_AVAILABLE and BeaconIntegrator and self.network_beacon:
+            try:
+                self.beacon_integrator = BeaconIntegrator(self.network_beacon, self.tui)
+                self.tui.success("Beacon integrator loaded for cross-component tracking")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize beacon integrator: {e}")
 
         # Initialize VPS manager if available
         self.vps_manager = None

