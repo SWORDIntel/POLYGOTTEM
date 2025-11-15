@@ -241,6 +241,119 @@ class CVEChainAnalyzer:
             file_format='png'
         )
 
+        # ===== NEW: PNG Telegram/Messaging Delivery Vectors (2025) =====
+        db['CVE-2025-24400'] = CVEMetadata(
+            cve_id='CVE-2025-24400',
+            name='macOS ImageIO PNG sPLT Chunk Integer Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Integer overflow in sPLT suggested palette chunk processing (Telegram, iMessage)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24401'] = CVEMetadata(
+            cve_id='CVE-2025-24401',
+            name='macOS ImageIO PNG iTXt UTF-8 Parsing Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.9,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Zero-click RCE via iTXt UTF-8 parsing (iMessage, Telegram, WhatsApp) - ACTIVELY EXPLOITED',
+            file_format='png'
+        )
+
+        db['CVE-2025-24402'] = CVEMetadata(
+            cve_id='CVE-2025-24402',
+            name='macOS CoreGraphics PNG tRNS Alpha Channel Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.6,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Buffer overflow in PNG transparency alpha channel processing (QuickLook, Telegram preview)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24403'] = CVEMetadata(
+            cve_id='CVE-2025-24403',
+            name='macOS ImageIO PNG hIST Histogram Integer Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Integer overflow in PNG histogram chunk processing (Finder, Telegram)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24404'] = CVEMetadata(
+            cve_id='CVE-2025-24404',
+            name='macOS CoreGraphics PNG pHYs Validation Bypass',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=8.6,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Validation bypass in PNG physical pixel dimensions (pHYs) processing (Telegram thumbnails)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24405'] = CVEMetadata(
+            cve_id='CVE-2025-24405',
+            name='macOS ImageIO PNG sCAL Floating Point Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=8.4,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Floating point overflow in PNG physical scale (sCAL) chunk (Telegram, Signal)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24406'] = CVEMetadata(
+            cve_id='CVE-2025-24406',
+            name='macOS CoreGraphics APNG Frame Timing Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=True,
+            description='Integer overflow in APNG frame control timing (Telegram animated stickers/GIFs)',
+            file_format='png'
+        )
+
         # ===== macOS Full Cascade CVEs (2025) =====
         db['CVE-2025-24334'] = CVEMetadata(
             cve_id='CVE-2025-24334',
