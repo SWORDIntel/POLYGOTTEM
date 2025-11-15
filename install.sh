@@ -38,17 +38,44 @@ PYTHON_VERSION=$($PYTHON_CMD --version 2>&1 | awk '{print $2}')
 print_msg "$GREEN" "✓ Found Python $PYTHON_VERSION"
 echo
 
-# Check if venv already exists
-if [ -d "$VENV_DIR" ]; then
-    print_msg "$YELLOW" "[2/5] Virtual environment already exists."
-    read -p "$(echo -e ${YELLOW}Do you want to recreate it? This will delete existing venv. [y/N]: ${NC})" -n 1 -r
+# Check for tkinter (for file dialog support)
+print_msg "$YELLOW" "[1.5/5] Checking for tkinter (file dialog support)..."
+if ! $PYTHON_CMD -c "import tkinter" 2>/dev/null; then
+    print_msg "$YELLOW" "⚠ tkinter not found - file dialogs will be unavailable"
+    print_msg "$BLUE" "  To enable graphical file browsing, install tkinter:"
+    if [ -f /etc/debian_version ]; then
+        print_msg "$BLUE" "  sudo apt install python3-tk"
+    elif [ -f /etc/redhat-release ]; then
+        print_msg "$BLUE" "  sudo dnf install python3-tkinter"
+    else
+        print_msg "$BLUE" "  Install python3-tk or python3-tkinter for your distribution"
+    fi
+    echo
+    read -p "$(echo -e ${YELLOW}Install tkinter now? [y/N]: ${NC})" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_msg "$YELLOW" "Removing existing virtual environment..."
-        rm -rf "$VENV_DIR"
+        if [ -f /etc/debian_version ]; then
+            print_msg "$BLUE" "Installing tkinter..."
+            sudo apt install -y python3-tk && print_msg "$GREEN" "✓ tkinter installed" || print_msg "$YELLOW" "⚠ tkinter installation failed (needs sudo)"
+        elif [ -f /etc/redhat-release ]; then
+            print_msg "$BLUE" "Installing tkinter..."
+            sudo dnf install -y python3-tkinter && print_msg "$GREEN" "✓ tkinter installed" || print_msg "$YELLOW" "⚠ tkinter installation failed (needs sudo)"
+        else
+            print_msg "$YELLOW" "Manual installation required for your distribution"
+        fi
     else
-        print_msg "$GREEN" "Using existing virtual environment."
+        print_msg "$BLUE" "Skipping tkinter (file dialogs disabled, manual path entry will work)"
     fi
+else
+    print_msg "$GREEN" "✓ tkinter available - file dialogs enabled"
+fi
+echo
+
+# Auto-overwrite venv if it exists
+if [ -d "$VENV_DIR" ]; then
+    print_msg "$YELLOW" "[2/5] Removing existing virtual environment..."
+    rm -rf "$VENV_DIR"
+    print_msg "$GREEN" "✓ Existing venv removed"
 fi
 echo
 
@@ -178,21 +205,32 @@ if [ "$INTERACTIVE_MODE" = true ]; then
     fi
     echo
 
-    # Intel Level Zero
+    # Intel Level Zero (SYSTEM PACKAGE - not on PyPI)
     print_msg "$BLUE" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     print_msg "$BLUE" "Package: Intel Level Zero (GPU acceleration)"
-    if check_package "level_zero"; then
-        print_msg "$GREEN" "  ✓ Already available (system or venv installation)"
-        print_msg "$YELLOW" "  Using existing installation."
-    else
-        print_msg "$YELLOW" "  Size: ~100MB | Speed boost: 5-20x for parallel ops"
-        print_msg "$YELLOW" "  Requires: Intel Arc GPU or Iris Xe Graphics"
-        read -p "$(echo -e ${YELLOW}Install Level Zero? [y/N]: ${NC})" -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+    print_msg "$YELLOW" "  NOTE: Level Zero is a SYSTEM package (not on PyPI)"
+    print_msg "$YELLOW" "  Speed boost: 5-20x for parallel ops"
+    print_msg "$YELLOW" "  Requires: Intel Arc GPU or Iris Xe Graphics"
+    echo
+    if [ -f /etc/debian_version ]; then
+        print_msg "$BLUE" "  Install command: sudo apt install intel-level-zero-gpu level-zero"
+    elif [ -f /etc/redhat-release ]; then
+        print_msg "$BLUE" "  Install command: sudo dnf install level-zero"
+    fi
+    read -p "$(echo -e ${YELLOW}Install Level Zero system package now? [y/N]: ${NC})" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ -f /etc/debian_version ]; then
             print_msg "$BLUE" "Installing Level Zero..."
-            pip install "level-zero>=1.14.0" --quiet && print_msg "$GREEN" "✓ Level Zero installed" || print_msg "$RED" "✗ Level Zero installation failed"
+            sudo apt install -y intel-level-zero-gpu level-zero && print_msg "$GREEN" "✓ Level Zero installed" || print_msg "$YELLOW" "⚠ Level Zero installation failed (needs Intel GPU repo)"
+        elif [ -f /etc/redhat-release ]; then
+            print_msg "$BLUE" "Installing Level Zero..."
+            sudo dnf install -y level-zero && print_msg "$GREEN" "✓ Level Zero installed" || print_msg "$YELLOW" "⚠ Level Zero installation failed (needs Intel GPU repo)"
+        else
+            print_msg "$YELLOW" "Manual installation required for your distribution"
         fi
+    else
+        print_msg "$BLUE" "Skipping Level Zero (PyOpenCL will work without it)"
     fi
     echo
 
@@ -214,20 +252,20 @@ if [ "$INTERACTIVE_MODE" = true ]; then
     fi
     echo
 
-    # Intel Extension for Python
+    # Intel Extension for Scikit-learn
     print_msg "$BLUE" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_msg "$BLUE" "Package: Intel Extension for Python"
-    if check_package "intel_extension_for_pytorch" || check_package "intel_extension_for_tensorflow"; then
+    print_msg "$BLUE" "Package: Intel Extension for Scikit-learn"
+    if check_package "sklearnex"; then
         print_msg "$GREEN" "  ✓ Already available (system or venv installation)"
         print_msg "$YELLOW" "  Using existing installation."
     else
-        print_msg "$YELLOW" "  Size: ~500MB | Speed boost: 2-5x for NumPy operations"
+        print_msg "$YELLOW" "  Size: ~200MB | Speed boost: 2-5x for NumPy/SciPy operations"
         print_msg "$YELLOW" "  Requires: Intel CPU (any generation)"
-        read -p "$(echo -e ${YELLOW}Install Intel Extension for Python? [y/N]: ${NC})" -n 1 -r
+        read -p "$(echo -e ${YELLOW}Install Intel Extension for Scikit-learn? [y/N]: ${NC})" -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_msg "$BLUE" "Installing Intel Extension for Python..."
-            pip install "intel-extension-for-python>=2.1.0" --quiet && print_msg "$GREEN" "✓ Intel Extension for Python installed" || print_msg "$RED" "✗ Installation failed"
+            print_msg "$BLUE" "Installing Intel Extension for Scikit-learn..."
+            pip install "scikit-learn-intelex>=2024.0" --quiet && print_msg "$GREEN" "✓ Intel Extension for Scikit-learn installed" || print_msg "$RED" "✗ Installation failed"
         fi
     fi
     echo
@@ -257,7 +295,8 @@ if [ "$INTEL_ALL" = true ]; then
     print_msg "$RED" "  WARNING: Full Intel Optimization"
     print_msg "$RED" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     print_msg "$YELLOW" "This will download 1-5GB of packages and take 10-30 minutes!"
-    print_msg "$YELLOW" "Packages: OpenVINO, Level Zero, PyOpenCL, Intel Extension, Neural Compressor"
+    print_msg "$YELLOW" "Packages: OpenVINO, PyOpenCL, Intel Scikit-learn Extension, Neural Compressor"
+    print_msg "$BLUE" "Note: Level Zero must be installed separately as a system package"
     echo
     read -p "$(echo -e ${RED}Continue? [y/N]: ${NC})" -n 1 -r
     echo
