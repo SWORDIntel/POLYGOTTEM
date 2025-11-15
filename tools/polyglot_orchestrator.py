@@ -26,6 +26,14 @@ import argparse
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+# Try to import tkinter for file dialogs
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    TKINTER_AVAILABLE = True
+except ImportError:
+    TKINTER_AVAILABLE = False
+
 # Add tools to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -258,17 +266,7 @@ class PolyglotOrchestrator:
             return
 
         # Prompt for custom container file
-        custom_file = None
-        print()
-        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
-        self.tui.list_item("Press Enter to use default (generated file)", level=1)
-        self.tui.list_item("Or provide path to custom container file", level=1)
-        print()
-
-        custom_file = self.menu.prompt_input(
-            "Container file path (or press Enter for default)",
-            default=""
-        )
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
 
         # Validate custom file
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
@@ -381,16 +379,7 @@ class PolyglotOrchestrator:
             return
 
         # Prompt for PNG container
-        print()
-        self.tui.info("Select PNG container for APT-41 polyglot:")
-        self.tui.list_item("Press Enter to use default (minimal 64x64 PNG)", level=1)
-        self.tui.list_item("Or provide path to custom PNG image", level=1)
-        print()
-
-        custom_png = self.menu.prompt_input(
-            "PNG image path (or press Enter for default)",
-            default=""
-        )
+        custom_png = self._prompt_custom_file("PNG container")
 
         output_file = "5AF0PfnN_replica.png"
         self.tui.info("Generating APT-41 polyglot (this may take a moment)...")
@@ -829,16 +818,7 @@ sudo /usr/local/bin/cpu_desync_linux
         self.tui.info("Generating Linux CVE cascade (PNG vector)...")
 
         # Prompt for PNG container selection
-        print()
-        self.tui.info("Select PNG container for payload embedding:")
-        self.tui.list_item("Press Enter to use default minimal PNG (64x64)", level=1)
-        self.tui.list_item("Or provide path to custom PNG image", level=1)
-        print()
-
-        custom_png = self.menu.prompt_input(
-            "PNG image path (or press Enter for default)",
-            default=""
-        )
+        custom_png = self._prompt_custom_file("PNG container")
 
         # Most guaranteed Linux CVE cascade: HFS+ heap overflow -> Kernel OOB write -> Root persistence
         # Delivered as PNG polyglot for maximum compatibility
@@ -1353,16 +1333,7 @@ sudo /usr/local/bin/cpu_desync_macos
             return
 
         # Prompt for custom container file
-        print()
-        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
-        self.tui.list_item("Press Enter to use default (generated file)", level=1)
-        self.tui.list_item("Or provide path to custom container file", level=1)
-        print()
-
-        custom_file = self.menu.prompt_input(
-            "Container file path (or press Enter for default)",
-            default=""
-        )
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
 
         # Validate custom file
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
@@ -1404,16 +1375,7 @@ sudo /usr/local/bin/cpu_desync_macos
             return
 
         # Prompt for custom container file
-        print()
-        self.tui.info(f"Select container file for {polyglot_type} polyglot:")
-        self.tui.list_item("Press Enter to use default (generated file)", level=1)
-        self.tui.list_item("Or provide path to custom container file", level=1)
-        print()
-
-        custom_file = self.menu.prompt_input(
-            "Container file path (or press Enter for default)",
-            default=""
-        )
+        custom_file = self._prompt_custom_file(f"{polyglot_type} container")
 
         # Validate custom file
         custom_file_path = custom_file if custom_file and os.path.isfile(custom_file) else None
@@ -1480,6 +1442,74 @@ sudo /usr/local/bin/cpu_desync_macos
             default="CVE-2025-48593"
         )
         return cve_input if cve_input else None
+
+    def _prompt_custom_file(self, file_type: str = "container") -> Optional[str]:
+        """
+        Prompt for custom file selection with optional file dialog
+
+        Args:
+            file_type: Description of file type (e.g., "container", "PNG")
+
+        Returns:
+            File path if selected, None otherwise
+        """
+        print()
+        self.tui.info(f"Select {file_type} file:")
+
+        if TKINTER_AVAILABLE:
+            self.tui.list_item("Press 'B' to browse with file dialog", level=1)
+            self.tui.list_item("Press Enter to use default (generated file)", level=1)
+            self.tui.list_item("Or type file path directly", level=1)
+        else:
+            self.tui.list_item("Press Enter to use default (generated file)", level=1)
+            self.tui.list_item("Or type file path directly", level=1)
+        print()
+
+        user_input = self.menu.prompt_input(
+            f"{file_type.capitalize()} file path (or 'B' to browse, Enter for default)",
+            default=""
+        )
+
+        # Handle file browser
+        if TKINTER_AVAILABLE and user_input and user_input.upper() == 'B':
+            try:
+                # Create hidden root window
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+
+                # Determine file types based on context
+                filetypes = [
+                    ("All Files", "*.*"),
+                    ("PNG Images", "*.png"),
+                    ("JPEG Images", "*.jpg *.jpeg"),
+                    ("ZIP Archives", "*.zip"),
+                    ("PDF Documents", "*.pdf"),
+                    ("GIF Images", "*.gif"),
+                ]
+
+                # Open file dialog
+                filepath = filedialog.askopenfilename(
+                    title=f"Select {file_type} file",
+                    filetypes=filetypes
+                )
+
+                # Destroy root
+                root.destroy()
+
+                if filepath:
+                    self.tui.success(f"Selected: {filepath}")
+                    return filepath
+                else:
+                    self.tui.warning("No file selected")
+                    return None
+
+            except Exception as e:
+                self.tui.error(f"File dialog error: {e}")
+                return None
+
+        # Return typed path or None for default
+        return user_input if user_input else None
 
     def _select_platform(self) -> Optional[TargetPlatform]:
         """Select target platform"""
