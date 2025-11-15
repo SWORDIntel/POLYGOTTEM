@@ -39,45 +39,67 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 
 ## 📦 Installation
 
-### Quick Install (Recommended)
+### Universal Quick Install (All Platforms)
 
 ```bash
 # Clone repository
 git clone https://github.com/SWORDIntel/POLYGOTTEM.git
 cd POLYGOTTEM
 
-# Run installer (interactive setup)
-./install.sh
+# Run universal installer (works on Windows, Linux, macOS)
+./install          # Linux/macOS/WSL
+# OR
+install.bat        # Windows CMD/PowerShell
 
 # Launch POLYGOTTEM
-./launch.sh
+./launch           # Linux/macOS/WSL
+# OR
+launch.bat         # Windows CMD/PowerShell
 ```
+
+**Auto-detection:** The installer automatically detects your OS (Windows/Linux/macOS) and runs the appropriate installer.
 
 ### Installation Modes
 
 **1. Interactive (Default) - Recommended**
 ```bash
-./install.sh
+./install
 # Prompts for hardware acceleration options
 ```
 
 **2. Minimal (CPU Only)**
 ```bash
-./install.sh --auto
+./install --auto
 # Fast install, just NumPy (works everywhere)
 ```
 
 **3. Custom Package Selection**
 ```bash
-./install.sh --interactive
+./install --interactive
 # Choose individual Intel packages (OpenVINO, PyOpenCL, etc.)
 ```
 
 **4. Full Intel Optimization**
 ```bash
-./install.sh --intel
+./install --intel
 # Install all Intel acceleration (1-5GB, requires Intel hardware)
 ```
+
+### Platform-Specific Notes
+
+**Linux/macOS:**
+- Uses Bash scripts (`install.sh`, `launch.sh`)
+- Automatically detects Python 3.8+
+- Supports ARM64 (M1/M2 Macs)
+
+**Windows:**
+- Uses PowerShell/CMD batch files (`install.bat`, `launch.bat`)
+- Automatically detects Python 3.8+ in PATH
+- Native Windows virtual environment support
+
+**WSL (Windows Subsystem for Linux):**
+- Use Bash scripts (same as Linux)
+- Full GUARANTEE cascade support
 
 ### Manual Installation
 
@@ -99,29 +121,39 @@ chmod +x polygottem.py
 ./polygottem.py list capabilities
 ```
 
-**Requirements:** Python 3.8+, Linux/macOS/WSL
+**Requirements:** Python 3.8+, Linux/macOS/Windows/WSL
 
 ---
 
 ## 🚀 Usage
 
-### **Launch Script**
+### **Launch Script (Cross-Platform)**
 
-The `launch.sh` script automatically activates the virtual environment and runs POLYGOTTEM:
+The `launch` script automatically detects your OS and runs the appropriate launcher:
 
 ```bash
 # Launch POLYGOTTEM TUI
-./launch.sh
+./launch           # Linux/macOS/WSL
+launch.bat         # Windows
 
 # Run with specific command
-./launch.sh list cves
+./launch list cves
+launch.bat list cves
 
 # Run benchmark tests
-./launch.sh --benchmark
+./launch --benchmark
+launch.bat --benchmark
 
 # Show help
-./launch.sh --help
+./launch --help
+launch.bat --help
+
+# Set default launch mode (interactive + Intel)
+./launch --set-interactive --set-intel
+launch.bat --set-interactive --set-intel
 ```
+
+**Auto-Detection:** `./launch` and `launch.bat` automatically detect your OS and run the correct underlying script (`launch.sh` for Unix, `launchers/launch.bat` for Windows).
 
 ### **Framework Commands**
 

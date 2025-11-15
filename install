@@ -1,0 +1,13 @@
+#!/bin/bash
+# POLYGOTTEM Universal Installer Wrapper
+# Works on Windows (bash), Linux, and macOS
+
+# Try Python first (works on all platforms)
+if command -v python3 &> /dev/null; then
+    python3 install.py "$@"
+elif command -v python &> /dev/null; then
+    python install.py "$@"
+else
+    echo "❌ ERROR: Python not found. Please install Python 3.8 or higher."
+    exit 1
+fi
