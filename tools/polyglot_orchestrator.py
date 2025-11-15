@@ -47,8 +47,8 @@ class PolyglotOrchestrator:
         self.menu = InteractiveMenu(self.tui)
         self.engine = AutoExecutionEngine(self.tui)
         self.opsec = OperationalSecurity(verbose=verbose)
-        self.chain_analyzer = CVEChainAnalyzer(verbose=verbose)
-        self.polyglot_gen = MultiCVEPolyglot(verbose=verbose)
+        self.chain_analyzer = CVEChainAnalyzer()
+        self.polyglot_gen = MultiCVEPolyglot(tui=self.tui)
         self.exploit_gen = ExploitHeaderGenerator(verbose=verbose)
 
         # Operation tracking (Vault7-style)
