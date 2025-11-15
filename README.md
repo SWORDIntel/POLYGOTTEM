@@ -17,9 +17,18 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 **🚀 Quick Start:**
 
 ```bash
+# CVE-based exploitation
 ./polygottem.py list cves                    # List all 45 CVEs
 ./polygottem.py polyglot apt41 malware.png   # APT-41 cascading PE
 ./polygottem.py analyze ios                  # Analyze iOS chains
+
+# NEW: C Methods Framework (native compiled exploitation)
+./polygottem.py c-methods compile            # Compile C methods library
+./polygottem.py c-methods list               # List 40+ native methods
+./polygottem.py c-methods tui                # Interactive C methods TUI
+
+# Interactive orchestrator
+./polygottem.py interactive                  # Launch main TUI menu
 ```
 
 ---
@@ -28,12 +37,13 @@ POLYGOTTEM is a sophisticated exploit framework inspired by real nation-state tr
 
 - ✅ **45 CVE Implementations** - macOS, Windows, Linux, iOS, Android (2025 latest)
 - 🪆 **APT-41 5-Cascading PE** - Unprecedented PNG→ZIP→5×PE structure
-- 🎯 **Smart Workflows** - 6 preset workflows (Quick, Smart, Full, APT-41, Platform, Custom)
-- 🛡️ **Advanced Defense Evasion** - Anti-VM, corrupted headers, XOR rotation
+- 🎯 **Smart Workflows** - 7 preset workflows (Quick, Smart, Full, APT-41, Platform, **C Methods**, Custom)
+- ⚙️ **40+ Native C Methods** - Compiled exploitation, obfuscation, cryptography (NEW!)
+- 🛡️ **Advanced Defense Evasion** - Anti-VM, debugger detection, hook detection, code obfuscation
 - 🔐 **Operational Security** - Timestomping, secure deletion, entropy padding
-- 🧠 **Intelligent Chaining** - Auto-generate exploit chains for full compromise
+- 🧠 **Intelligent Chaining** - Auto-generate exploit chains with C methods integration
 - 🎯 **MITRE ATT&CK** - 21 techniques mapped and implemented
-- 🚀 **Hardware Acceleration** - Intel NPU/GPU support for XOR encryption
+- 🚀 **Hardware Acceleration** - Intel NPU/GPU support + Native C performance
 
 ---
 
@@ -216,7 +226,13 @@ python3 tools/polyglot_orchestrator.py
    - Zero-click to kernel (iOS: CoreAudio → Kernel UAF)
    - Complete chain generation with artifacts
 
-6. **🎨 Custom Workflow** - Manual CVE Selection
+6. **⚙️ C Methods Exploitation** - Native Compiled Exploitation (NEW!)
+   - 40+ native C-based exploitation methods
+   - Privilege escalation, kernel exploitation, memory attacks
+   - Obfuscation, cryptography, process injection
+   - Quick exploitation, method analysis, advanced configuration
+
+7. **🎨 Custom Workflow** - Manual CVE Selection
    - Full manual control over CVE selection
    - Custom format and execution methods
    - Original TUI experience preserved
@@ -230,6 +246,74 @@ python3 tools/polyglot_orchestrator.py
 | **audio** | MP3+FLAC+OGG+WAV | 4 CVEs |
 | **mega** | 12+ formats combined | All CVEs |
 | **custom** | User-selected CVEs | Variable |
+
+---
+
+## ⚙️ C Methods Framework (NEW!)
+
+**High-Performance Native Exploitation Methods**
+
+The POLYGOTTEM C Methods Framework provides 40+ compiled C-based exploitation techniques across 4 categories:
+
+### **Quick Start - C Methods**
+
+```bash
+# Compile C methods library (required once)
+./polygottem.py c-methods compile
+
+# Check compilation status
+./polygottem.py c-methods status
+
+# List all available C methods
+./polygottem.py c-methods list
+
+# Launch interactive C Methods TUI
+./polygottem.py c-methods tui
+
+# Or through main orchestrator
+./polygottem.py interactive
+# Then select: "⚙️ C Methods Exploitation"
+```
+
+### **C Methods Categories**
+
+| Category | Methods | Examples |
+|----------|---------|----------|
+| **Exploitation** | 16+ | Privilege escalation, memory attacks, kernel exploitation |
+| **Utilities** | 16+ | Process injection, system manipulation, anti-analysis, obfuscation |
+| **Native Components** | 10+ | Cryptography (AES, XOR, SHA-256), compression, networking |
+| **Cross-Platform Payloads** | 16+ | Windows (Win32, WMI, scheduled tasks), Linux (ptrace, LD_PRELOAD), macOS (dyld, XPC) |
+
+### **Key Features**
+
+- ✅ **40+ Native Methods** - Compiled C code for performance
+- ✅ **Platform-Aware** - Windows, Linux, macOS specific techniques
+- ✅ **Multiple Access Points** - CLI, TUI, Python API, Auto-Execution, GUARANTEE chainer
+- ✅ **Full Integration** - Works seamlessly with CVE exploits and polyglots
+- ✅ **GUARANTEE Chaining** - Chain C methods with CVE exploits
+- ✅ **Obfuscation & Crypto** - Built-in encoding, encryption, compression
+
+### **C Methods Workflows** (in interactive mode)
+
+1. **⚡ Quick Exploitation** - Select platform → Select method → Execute
+2. **🔍 Analysis** - View methods by platform and reliability
+3. **⚙️ Advanced Configuration** - Chain multiple methods
+4. **📋 List All Methods** - Full method catalog
+
+### **Integration with GUARANTEE**
+
+C Methods are fully integrated with the GUARANTEE chaining framework:
+
+```python
+# In Python code
+from guarantee_c_integration import integrate_c_methods
+chainer = integrate_c_methods(chainer)
+# Now C methods available for chaining!
+```
+
+**For detailed C Methods documentation**, see:
+- [C Methods Integration Guide](docs/C_METHODS_INTEGRATION_GUIDE.md) - Comprehensive guide with examples
+- [C Methods Framework](c_methods/README.md) - Technical framework details
 
 ---
 
@@ -258,23 +342,43 @@ python3 tools/polyglot_orchestrator.py
 ```
 POLYGOTTEM v2.0 (CHIMERA)
 ├─ polygottem.py              → Main CLI orchestrator
+├─ c_methods/                 → C Methods Framework (NEW!)
+│  ├─ CMakeLists.txt          → Cross-platform build system
+│  ├─ include/polygottem_c.h  → C API header (40+ functions)
+│  ├─ exploitation/           → 4 files (privilege escalation, memory, kernel, Windows)
+│  ├─ utilities/              → 4 files (injection, manipulation, anti-analysis, obfuscation)
+│  ├─ native/                 → 4 files (crypto, memory ops, networking, compression)
+│  └─ payloads/               → 3 files (Windows, Linux, macOS)
 ├─ tools/
 │  ├─ exploit_header_generator.py   → 45 CVE implementations
 │  ├─ multi_cve_polyglot.py         → 6 polyglot types
 │  ├─ cve_chain_analyzer.py         → Intelligent chaining
 │  ├─ operational_security.py       → Anti-forensics (Vault7/Shadow Brokers)
+│  ├─ guarantee_c_compiler.py       → C methods compilation (NEW!)
+│  ├─ guarantee_c_methods.py        → C methods Python wrapper (NEW!)
+│  ├─ guarantee_c_integration.py    → GUARANTEE chainer integration (NEW!)
+│  ├─ c_methods_autoexec_bridge.py  → Auto-execution bridge (NEW!)
+│  ├─ c_methods_tui_integration.py  → TUI workflows (NEW!)
 │  ├─ polyglot_orchestrator.py      → Smart workflows & interactive TUI (ENHANCED!)
-│  │                                   • 6 smart workflow presets
+│  │                                   • 7 smart workflow presets (+ C Methods)
 │  │                                   • Platform-aware auto-CVE selection
 │  │                                   • Integrated OpSec automation
 │  │                                   • Operation tracking & validation
 │  ├─ intel_acceleration.py         → NPU/GPU acceleration
-│  └─ auto_execution_engine.py      → Multi-vector execution methods
+│  └─ auto_execution_engine.py      → Multi-vector execution (ENHANCED with C Methods!)
 └─ docs/
+   ├─ C_METHODS_INTEGRATION_GUIDE.md → Comprehensive integration guide (1,200+ lines)
    ├─ CVE_CHAIN_ANALYSIS.md         → Chain methodology (650 lines)
    ├─ APT41_ATTACK_CHAINS.md        → Real-world TTPs (3,800 lines)
    └─ APT41_CASCADING_POLYGLOT.md   → 5-PE guide (5,200 lines)
 ```
+
+**NEW: C Methods Framework**
+- 40+ native C-based exploitation methods
+- 4 categories: Exploitation, Utilities, Native Components, Payloads
+- Cross-platform support: Windows, Linux, macOS
+- Performance-critical implementations
+- Full integration with GUARANTEE and auto-execution systems
 
 ---
 
@@ -440,11 +544,43 @@ rule APT41_Cascading_PE_Polyglot {
 
 ---
 
+## 🛡️ C Methods Defensive Applications (NEW!)
+
+The C Methods Framework enables advanced defensive research:
+
+### **Threat Detection**
+
+- **Process Injection Detection** - Monitor DLL injection vectors
+- **Privilege Escalation Monitoring** - Track kernel race conditions, token impersonation
+- **Memory Exploitation Prevention** - Detect buffer overflow, UAF attacks
+- **Obfuscation Pattern Analysis** - Study code obfuscation techniques
+- **Anti-Analysis Evasion** - Research VM/debugger detection bypasses
+
+### **Defensive Research Use Cases**
+
+1. **EDR Development** - Create detection rules for C method behaviors
+2. **YARA Rule Creation** - Signature development for compiled techniques
+3. **Forensic Analysis** - Post-incident analysis of C-based attacks
+4. **Security Training** - Teach exploitation defense mechanisms
+5. **Vulnerability Assessment** - Identify security gaps in systems
+
+### **Integration with Defense Tools**
+
+- Develop Sigma rules for C method detection
+- Create Splunk/ELK alerts for exploitation patterns
+- Build EDR analytics for kernel exploitation
+- Develop MITRE Caldera modules for defensive simulations
+
+**See**: [C Methods Integration Guide](docs/C_METHODS_INTEGRATION_GUIDE.md#security-considerations) for security considerations
+
+---
+
 ## 📚 Documentation
 
 | Document | Description | Size |
 |----------|-------------|------|
 | **README.md** | Main documentation | This file |
+| **C_METHODS_INTEGRATION_GUIDE.md** | C Methods detailed guide | 1,200+ lines (NEW!) |
 | **CVE_CHAIN_ANALYSIS.md** | Exploit chain methodology | 650+ lines |
 | **APT41_ATTACK_CHAINS.md** | Real-world APT-41 TTPs | 3,800+ lines |
 | **APT41_CASCADING_POLYGLOT.md** | 5-PE polyglot guide | 5,200+ lines |
@@ -493,7 +629,12 @@ Contributions welcome for defensive research:
 4. Push to branch (`git push origin feature/detection-rule`)
 5. Open Pull Request
 
-**Focus Areas:** YARA rules, Sigma signatures, EDR analytics, forensic tools
+**Focus Areas:**
+- YARA rules and Sigma signatures
+- EDR analytics and detection rules
+- Forensic analysis tools
+- C Methods implementations (kernel, memory, obfuscation)
+- Defense mechanisms and evasion detection
 
 ---
 
@@ -515,8 +656,8 @@ This software is provided for **defensive security research, education, and auth
 
 ---
 
-**Version:** 2.0.0 (CHIMERA)  
-**Build Date:** 2025-11-13  
+**Version:** 2.0.0 (CHIMERA)
+**Build Date:** 2025-11-15 (Updated with C Methods Framework)
 **Maintained by:** SWORDIntel Security Research
 ---
 **INTERNAL USE ONLY**
@@ -525,6 +666,7 @@ This software is provided for **defensive security research, education, and auth
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                    POLYGOTTEM v2.0 - CHIMERA                         ║
 ║         Advanced Exploit Framework & Polyglot Generator              ║
+║     Now with 40+ Native C Methods for High-Performance Exploitation  ║
 ║  Nation-State Level Exploit Generation for Defensive Research       ║
 ║  ⚠️  EDUCATIONAL/RESEARCH USE ONLY - AUTHORIZED TESTING REQUIRED ⚠️  ║
 ╚══════════════════════════════════════════════════════════════════════╝
