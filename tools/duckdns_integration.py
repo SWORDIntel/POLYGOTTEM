@@ -17,8 +17,20 @@ import subprocess
 import requests
 import random
 import time
-from typing import Optional, Dict, Tuple
+import platform
+from typing import Optional, Dict, Tuple, List
 from datetime import datetime
+from pathlib import Path
+
+
+def is_macos() -> bool:
+    """
+    Check if running on macOS
+
+    Returns:
+        True if macOS, False otherwise
+    """
+    return platform.system() == 'Darwin'
 
 
 def validate_ip_address(ip: str) -> bool:
@@ -110,6 +122,394 @@ class DuckDNSIntegration:
         self.ssh_port = ssh_port if ssh_port is not None else self.generate_random_port()
         self.update_url = f"https://www.duckdns.org/update"
         self.config_file = os.path.expanduser("~/.polygottem_duckdns.conf")
+        self.is_macos = is_macos()
+
+    def enable_macos_remote_login(self) -> bool:
+        """
+        Enable macOS Remote Login (SSH)
+
+        Returns:
+            True if successful or already enabled
+        """
+        if not self.is_macos:
+            return False
+
+        try:
+            print("[*] Enabling macOS Remote Login (SSH)...")
+
+            # Check if already enabled
+            result = subprocess.run(
+                ['sudo', 'systemsetup', '-getremotelogin'],
+                capture_output=True,
+                text=True
+            )
+
+            if 'On' in result.stdout:
+                print("✓ Remote Login already enabled")
+                return True
+
+            # Enable Remote Login
+            result = subprocess.run(
+                ['sudo', 'systemsetup', '-setremotelogin', 'on'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode == 0:
+                print("✓ Remote Login enabled successfully")
+                return True
+            else:
+                print(f"✗ Failed to enable Remote Login: {result.stderr}")
+                return False
+
+        except subprocess.TimeoutExpired:
+            print("✗ Timeout enabling Remote Login (may require password)")
+            return False
+        except Exception as e:
+            print(f"✗ Error enabling Remote Login: {e}")
+            return False
+
+    def generate_launchdaemon_plist(self, script_path: str, label: str = "com.polygottem.sshkeepalive") -> str:
+        """
+        Generate LaunchDaemon plist for system-wide SSH persistence
+
+        Args:
+            script_path: Path to keepalive script
+            label: LaunchDaemon label
+
+        Returns:
+            Plist XML content
+        """
+        plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{script_path}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/var/log/{label}.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/{label}.err</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+</dict>
+</plist>'''
+        return plist_content
+
+    def generate_launchagent_plist(self, script_path: str, label: str = "com.polygottem.duckdns") -> str:
+        """
+        Generate LaunchAgent plist for user-level DuckDNS updates
+
+        Args:
+            script_path: Path to update script
+            label: LaunchAgent label
+
+        Returns:
+            Plist XML content
+        """
+        plist_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{script_path}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>StandardOutPath</key>
+    <string>/tmp/{label}.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/{label}.err</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>'''
+        return plist_content
+
+    def generate_ssh_keepalive_script(self) -> str:
+        """
+        Generate SSH keepalive monitoring script
+
+        Returns:
+            Bash script content
+        """
+        if self.is_macos:
+            service_check = '''
+# Check if SSH is running on macOS
+if ! sudo launchctl list | grep -q com.openssh.sshd; then
+    echo "$(date): SSH not running, starting..."
+    sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || \
+    sudo systemsetup -setremotelogin on
+fi
+'''
+        else:
+            service_check = '''
+# Check if SSH is running on Linux
+if ! systemctl is-active --quiet ssh && ! systemctl is-active --quiet sshd; then
+    echo "$(date): SSH not running, starting..."
+    sudo systemctl start ssh 2>/dev/null || sudo systemctl start sshd
+fi
+'''
+
+        script_content = f'''#!/bin/bash
+# SSH Keepalive Script for POLYGOTTEM
+# Monitors and restarts SSH service if needed
+
+LOG_FILE="/var/log/ssh_keepalive.log"
+
+# Logging function
+log() {{
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): $1" | tee -a "$LOG_FILE"
+}}
+
+log "SSH keepalive check starting..."
+
+{service_check}
+
+# Check if SSH port {self.ssh_port} is listening
+if ! netstat -an | grep -q ":{self.ssh_port}.*LISTEN" && ! ss -tln | grep -q ":{self.ssh_port}"; then
+    log "Warning: SSH not listening on port {self.ssh_port}"
+fi
+
+log "SSH keepalive check complete"
+'''
+        return script_content
+
+    def generate_reverse_tunnel_script(self, remote_host: str, remote_port: int = 2222,
+                                      remote_user: str = "tunnel") -> str:
+        """
+        Generate reverse SSH tunnel script with autossh
+
+        Args:
+            remote_host: Remote server for tunnel
+            remote_port: Remote port for reverse tunnel
+            remote_user: Remote username
+
+        Returns:
+            Bash script content
+        """
+        script_content = f'''#!/bin/bash
+# Reverse SSH Tunnel Script for POLYGOTTEM
+# Establishes persistent reverse tunnel for NAT/firewall bypass
+
+REMOTE_HOST="{remote_host}"
+REMOTE_PORT={remote_port}
+REMOTE_USER="{remote_user}"
+LOCAL_PORT={self.ssh_port}
+MONITOR_PORT=20000
+
+LOG_FILE="/var/log/reverse_tunnel.log"
+
+# Logging function
+log() {{
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): $1" | tee -a "$LOG_FILE"
+}}
+
+log "Starting reverse SSH tunnel..."
+
+# Kill existing autossh processes
+pkill -f "autossh.*$REMOTE_PORT"
+
+# Check if autossh is installed
+if ! command -v autossh &> /dev/null; then
+    log "Error: autossh not installed"
+{"    # macOS installation" if self.is_macos else "    # Linux installation"}
+{"    brew install autossh" if self.is_macos else "    sudo apt-get install -y autossh || sudo yum install -y autossh"}
+fi
+
+# Start reverse tunnel with autossh
+export AUTOSSH_POLL=60
+export AUTOSSH_LOGFILE="$LOG_FILE"
+
+autossh -M $MONITOR_PORT \\
+    -f -N \\
+    -o "ServerAliveInterval=30" \\
+    -o "ServerAliveCountMax=3" \\
+    -o "ExitOnForwardFailure=yes" \\
+    -o "StrictHostKeyChecking=no" \\
+    -R $REMOTE_PORT:localhost:$LOCAL_PORT \\
+    $REMOTE_USER@$REMOTE_HOST
+
+if [ $? -eq 0 ]; then
+    log "Reverse tunnel established: $REMOTE_HOST:$REMOTE_PORT -> localhost:$LOCAL_PORT"
+else
+    log "Failed to establish reverse tunnel"
+    exit 1
+fi
+'''
+        return script_content
+
+    def install_macos_persistence(self, remote_host: Optional[str] = None) -> bool:
+        """
+        Install complete macOS persistence (LaunchDaemons + LaunchAgents + Reverse Tunnel)
+
+        Args:
+            remote_host: Optional remote host for reverse SSH tunnel
+
+        Returns:
+            True if installation successful
+        """
+        if not self.is_macos:
+            print("⚠ Not running on macOS, skipping macOS-specific persistence")
+            return False
+
+        try:
+            print("\n" + "="*70)
+            print("Installing macOS Persistence")
+            print("="*70 + "\n")
+
+            success_count = 0
+            total_tasks = 3 if remote_host else 2
+
+            # 1. Install SSH keepalive LaunchDaemon
+            print("[1/{}] Installing SSH keepalive LaunchDaemon...".format(total_tasks))
+
+            keepalive_script_path = "/usr/local/bin/ssh_keepalive.sh"
+            keepalive_script = self.generate_ssh_keepalive_script()
+
+            try:
+                # Write keepalive script
+                subprocess.run(
+                    ['sudo', 'tee', keepalive_script_path],
+                    input=keepalive_script.encode(),
+                    capture_output=True,
+                    check=True
+                )
+                subprocess.run(['sudo', 'chmod', '+x', keepalive_script_path], check=True)
+
+                # Write LaunchDaemon plist
+                daemon_plist = self.generate_launchdaemon_plist(keepalive_script_path)
+                daemon_plist_path = "/Library/LaunchDaemons/com.polygottem.sshkeepalive.plist"
+
+                subprocess.run(
+                    ['sudo', 'tee', daemon_plist_path],
+                    input=daemon_plist.encode(),
+                    capture_output=True,
+                    check=True
+                )
+
+                # Load LaunchDaemon
+                subprocess.run(
+                    ['sudo', 'launchctl', 'load', '-w', daemon_plist_path],
+                    capture_output=True,
+                    check=True
+                )
+
+                print(f"✓ SSH keepalive LaunchDaemon installed: {daemon_plist_path}")
+                success_count += 1
+            except Exception as e:
+                print(f"✗ Failed to install SSH keepalive: {e}")
+
+            # 2. Install DuckDNS update LaunchAgent
+            print("\n[2/{}] Installing DuckDNS LaunchAgent...".format(total_tasks))
+
+            duckdns_script_path = os.path.expanduser("~/bin/duckdns_update.sh")
+            os.makedirs(os.path.dirname(duckdns_script_path), exist_ok=True)
+
+            duckdns_script = f'''#!/bin/bash
+# DuckDNS Auto-Update Script
+python3 {os.path.abspath(__file__)} --update
+'''
+
+            try:
+                with open(duckdns_script_path, 'w') as f:
+                    f.write(duckdns_script)
+                os.chmod(duckdns_script_path, 0o755)
+
+                # Write LaunchAgent plist
+                agent_plist = self.generate_launchagent_plist(duckdns_script_path)
+                agent_plist_path = os.path.expanduser("~/Library/LaunchAgents/com.polygottem.duckdns.plist")
+                os.makedirs(os.path.dirname(agent_plist_path), exist_ok=True)
+
+                with open(agent_plist_path, 'w') as f:
+                    f.write(agent_plist)
+
+                # Load LaunchAgent
+                subprocess.run(
+                    ['launchctl', 'load', '-w', agent_plist_path],
+                    capture_output=True,
+                    check=True
+                )
+
+                print(f"✓ DuckDNS LaunchAgent installed: {agent_plist_path}")
+                print(f"  Updates every 5 minutes")
+                success_count += 1
+            except Exception as e:
+                print(f"✗ Failed to install DuckDNS LaunchAgent: {e}")
+
+            # 3. Install reverse tunnel (optional)
+            if remote_host:
+                print(f"\n[3/{total_tasks}] Installing reverse SSH tunnel...")
+
+                tunnel_script_path = "/usr/local/bin/reverse_tunnel.sh"
+                tunnel_script = self.generate_reverse_tunnel_script(remote_host)
+
+                try:
+                    subprocess.run(
+                        ['sudo', 'tee', tunnel_script_path],
+                        input=tunnel_script.encode(),
+                        capture_output=True,
+                        check=True
+                    )
+                    subprocess.run(['sudo', 'chmod', '+x', tunnel_script_path], check=True)
+
+                    # Create LaunchDaemon for tunnel
+                    tunnel_plist = self.generate_launchdaemon_plist(
+                        tunnel_script_path,
+                        "com.polygottem.reversetunnel"
+                    )
+                    tunnel_plist_path = "/Library/LaunchDaemons/com.polygottem.reversetunnel.plist"
+
+                    subprocess.run(
+                        ['sudo', 'tee', tunnel_plist_path],
+                        input=tunnel_plist.encode(),
+                        capture_output=True,
+                        check=True
+                    )
+
+                    # Load tunnel daemon
+                    subprocess.run(
+                        ['sudo', 'launchctl', 'load', '-w', tunnel_plist_path],
+                        capture_output=True,
+                        check=True
+                    )
+
+                    print(f"✓ Reverse tunnel LaunchDaemon installed: {tunnel_plist_path}")
+                    print(f"  Tunnel: {remote_host}:2222 -> localhost:{self.ssh_port}")
+                    success_count += 1
+                except Exception as e:
+                    print(f"✗ Failed to install reverse tunnel: {e}")
+
+            print("\n" + "="*70)
+            print(f"Installation Complete: {success_count}/{total_tasks} components installed")
+            print("="*70 + "\n")
+
+            return success_count > 0
+
+        except Exception as e:
+            print(f"✗ Error installing macOS persistence: {e}")
+            return False
 
     def get_public_ip(self) -> Optional[str]:
         """
@@ -266,6 +666,11 @@ class DuckDNSIntegration:
             port = self.ssh_port
 
         try:
+            # macOS-specific SSH handling
+            if self.is_macos:
+                return self.enable_macos_remote_login()
+
+            # Linux SSH handling
             # Check if SSH server is running
             result = subprocess.run(
                 ['systemctl', 'is-active', 'ssh'],
@@ -594,7 +999,25 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="DuckDNS Integration for POLYGOTTEM"
+        description="DuckDNS Integration for POLYGOTTEM",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Update DuckDNS only
+  python3 duckdns_integration.py --update
+
+  # Full setup (DuckDNS + SSH)
+  python3 duckdns_integration.py --full
+
+  # macOS: Install persistence (LaunchDaemons + LaunchAgents)
+  python3 duckdns_integration.py --install-macos-persistence
+
+  # macOS: Install with reverse tunnel
+  python3 duckdns_integration.py --install-macos-persistence --tunnel-host example.com
+
+  # Setup reverse tunnel only
+  python3 duckdns_integration.py --reverse-tunnel example.com --tunnel-port 2222
+        """
     )
     parser.add_argument(
         '--update',
@@ -622,6 +1045,34 @@ def main():
         default=None,
         help='SSH port (default: random non-standard port for security, or specify custom)'
     )
+    parser.add_argument(
+        '--install-macos-persistence',
+        action='store_true',
+        help='macOS: Install LaunchDaemons and LaunchAgents for persistence'
+    )
+    parser.add_argument(
+        '--tunnel-host',
+        type=str,
+        help='Remote host for reverse SSH tunnel (for NAT/firewall bypass)'
+    )
+    parser.add_argument(
+        '--tunnel-port',
+        type=int,
+        default=2222,
+        help='Remote port for reverse tunnel (default: 2222)'
+    )
+    parser.add_argument(
+        '--tunnel-user',
+        type=str,
+        default='tunnel',
+        help='Remote username for reverse tunnel (default: tunnel)'
+    )
+    parser.add_argument(
+        '--reverse-tunnel',
+        type=str,
+        metavar='HOST',
+        help='Setup reverse SSH tunnel to specified host (shortcut for --tunnel-host)'
+    )
 
     args = parser.parse_args()
 
@@ -629,11 +1080,36 @@ def main():
     duckdns = DuckDNSIntegration(ssh_port=args.port)
 
     # Show selected port for user awareness
-    if args.port is None and (args.full or args.setup_ssh):
+    if args.port is None and (args.full or args.setup_ssh or args.install_macos_persistence):
         print(f"\n🔒 SECURITY: Using randomized SSH port {duckdns.ssh_port}")
         print(f"   (Use --port to specify custom port)\n")
 
-    if args.update:
+    # Handle macOS persistence installation
+    if args.install_macos_persistence:
+        if not is_macos():
+            print("✗ --install-macos-persistence requires macOS")
+            sys.exit(1)
+
+        remote_host = args.tunnel_host or args.reverse_tunnel
+        duckdns.install_macos_persistence(remote_host=remote_host)
+
+    # Handle reverse tunnel setup
+    elif args.reverse_tunnel or args.tunnel_host:
+        remote_host = args.reverse_tunnel or args.tunnel_host
+        print(f"\n[*] Setting up reverse SSH tunnel to {remote_host}...")
+
+        if duckdns.setup_autossh_tunnel(
+            remote_host=remote_host,
+            remote_port=args.tunnel_port,
+            local_port=duckdns.ssh_port
+        ):
+            print("\n✓ Reverse tunnel setup complete!")
+            print(f"  Connect via: ssh -p {args.tunnel_port} {os.getenv('USER')}@{remote_host}")
+        else:
+            print("\n✗ Reverse tunnel setup failed")
+
+    # Handle standard operations
+    elif args.update:
         duckdns.update_duckdns(args.ip)
     elif args.setup_ssh:
         duckdns.setup_ssh_server()
