@@ -159,6 +159,87 @@ class CVEChainAnalyzer:
             file_format='plist'
         )
 
+        # ===== macOS PNG-based CVEs (2025) =====
+        db['CVE-2025-24329'] = CVEMetadata(
+            cve_id='CVE-2025-24329',
+            name='macOS ImageIO PNG Chunk Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Zero-click RCE via malformed PNG chunk header (iMessage, Mail)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24330'] = CVEMetadata(
+            cve_id='CVE-2025-24330',
+            name='macOS CoreGraphics PNG IDAT Heap Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.6,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=False,
+            description='Heap overflow in PNG IDAT chunk decompression (Safari, Preview)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24331'] = CVEMetadata(
+            cve_id='CVE-2025-24331',
+            name='macOS ImageIO PNG Filter Integer Overflow',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=False,
+            description='Integer overflow in PNG filter row processing (QuickLook)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24332'] = CVEMetadata(
+            cve_id='CVE-2025-24332',
+            name='macOS CoreImage PNG Palette UAF',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.3,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Use-after-free in PNG PLTE palette handling (zero-click via iMessage)',
+            file_format='png'
+        )
+
+        db['CVE-2025-24333'] = CVEMetadata(
+            cve_id='CVE-2025-24333',
+            name='macOS ImageIO PNG Gamma Correction OOB',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.MACOS,
+            severity=Severity.HIGH,
+            cvss_score=7.8,
+            requires_auth=False,
+            requires_user_interaction=True,
+            kernel_level=False,
+            actively_exploited=False,
+            zero_click=False,
+            description='Out-of-bounds write in PNG gamma correction (gAMA chunk)',
+            file_format='png'
+        )
+
         # ===== Windows CVEs (2025) =====
         db['CVE-2025-60724'] = CVEMetadata(
             cve_id='CVE-2025-60724',
