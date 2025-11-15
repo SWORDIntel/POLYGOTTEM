@@ -31,6 +31,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tui_helper import TUI, Colors
 
 
+# Try to import fingerprint auth
+try:
+    from guarantee_fingerprint_auth import GuaranteeFingerprintAuth
+    FINGERPRINT_AVAILABLE = True
+except ImportError:
+    FINGERPRINT_AVAILABLE = False
+    GuaranteeFingerprintAuth = None
+
+
 class AuthorizationLevel:
     """Authorization levels for GUARANTEE mode"""
     NONE = 0
@@ -101,6 +110,15 @@ class GuaranteeValidator:
         self.authorizations: List[Dict[str, Any]] = []
         self.disclaimers_accepted: List[Dict[str, Any]] = []
 
+        # Initialize fingerprint authentication if available
+        self.fingerprint_auth = None
+        if FINGERPRINT_AVAILABLE:
+            try:
+                self.fingerprint_auth = GuaranteeFingerprintAuth(self.tui)
+                self.tui.success("Fingerprint authentication system initialized")
+            except Exception as e:
+                self.tui.warning(f"Could not initialize fingerprint auth: {e}")
+
     def display_critical_warning(self):
         """Display critical legal warning"""
         self.tui.raw(self.LEGAL_DISCLAIMER)
@@ -124,11 +142,21 @@ class GuaranteeValidator:
 
     def validate_authorization_interactive(self) -> bool:
         """
-        Interactively validate authorization
+        Interactively validate authorization with fingerprint authentication
 
         Returns:
             True if user confirms authorization
         """
+        # First: Require fingerprint authentication
+        if self.fingerprint_auth:
+            self.tui.section("Step 1: Biometric Authentication")
+            if not self.fingerprint_auth.require_authentication():
+                self.tui.error("❌ Fingerprint authentication required to proceed")
+                return False
+
+            self.fingerprint_auth.display_auth_status()
+            print()
+
         self.display_critical_warning()
 
         # Check authorization

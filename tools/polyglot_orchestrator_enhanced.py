@@ -78,6 +78,15 @@ class EnhancedPolyglotOrchestrator:
         self.optimizer = CascadeOptimizer(self.tui, use_acceleration=True)
         self.cmd_executor = CommandExecutor(self.tui)
 
+        # Initialize network beacon for testing
+        try:
+            from guarantee_network_beacon import GuaranteeNetworkBeacon
+            self.network_beacon = GuaranteeNetworkBeacon(self.tui)
+            self.tui.success("Network Beacon loaded for GUARANTEE testing")
+        except ImportError:
+            self.network_beacon = None
+            self.tui.warning("Network Beacon not available")
+
         # Initialize VPS manager if available
         self.vps_manager = None
         if VPS_AVAILABLE:
@@ -715,6 +724,44 @@ class EnhancedPolyglotOrchestrator:
             default=False
         )
 
+        # Network beacon testing (for GUARANTEE mode)
+        print()
+        config['network_beacon'] = self.menu.confirm(
+            "Enable Network Beacon for callback testing? (requires articbastion.duckdns.org)",
+            default=True
+        )
+
+        if config['network_beacon'] and self.network_beacon:
+            # Configure beacon endpoint
+            beacon_hostname = self.menu.prompt_input(
+                "Beacon endpoint hostname",
+                default="articbastion.duckdns.org"
+            )
+            beacon_port = self.menu.prompt_input(
+                "Beacon endpoint port",
+                default="443"
+            )
+            beacon_protocol = self.menu.prompt_input(
+                "Beacon protocol (https/http)",
+                default="https"
+            )
+
+            config['beacon_config'] = {
+                'hostname': beacon_hostname,
+                'port': int(beacon_port),
+                'protocol': beacon_protocol,
+                'enabled': True
+            }
+
+            # Configure beacon in network beacon manager
+            self.network_beacon.configure_beacon(
+                hostname=beacon_hostname,
+                port=int(beacon_port),
+                protocol=beacon_protocol
+            )
+        else:
+            config['beacon_config'] = None
+
         return config
 
     def _review_configuration(self,
@@ -778,6 +825,15 @@ class EnhancedPolyglotOrchestrator:
             strategy = "Adaptive (AI-optimized)"
 
         self.tui.info(f"🔄 Redundancy: {strategy}")
+
+        # Network beacon
+        print()
+        if redundancy_config.get('beacon_config'):
+            beacon_cfg = redundancy_config['beacon_config']
+            beacon_info = f"🌐 Network Beacon: {beacon_cfg['protocol']}://{beacon_cfg['hostname']}:{beacon_cfg['port']}"
+            self.tui.info(beacon_info)
+        else:
+            self.tui.info("🌐 Network Beacon: Disabled")
 
         print()
         return self.menu.confirm("Proceed with this configuration?", default=True)
