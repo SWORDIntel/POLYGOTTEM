@@ -58,6 +58,11 @@ class Colors:
     BG_CYAN = '\033[46m'
     BG_WHITE = '\033[47m'
 
+    # TEMPEST Level C colors
+    TEMPEST_AMBER = '\033[38;5;214m'  # Amber for EMSEC warnings
+    TEMPEST_ORANGE = '\033[38;5;208m'  # Orange for classification
+    TEMPEST_RED = '\033[38;5;196m'  # Bright red for critical EMSEC
+
 
 class Symbols:
     """Unicode symbols for status indicators"""
@@ -78,21 +83,32 @@ class Symbols:
     SKULL = '☠'
     SHIELD = '🛡'
 
+    # TEMPEST Level C symbols
+    RADIATION = '☢'  # Electromagnetic emission warning
+    WAVE = '〰'  # Signal emanation
+    CLASSIFIED = '🔐'  # Classification marking
+    EMSEC = '📡'  # EMSEC/SIGINT warning
+    ALERT = '🚨'  # Critical TEMPEST alert
+
 
 class TUI:
-    """Terminal User Interface helper class"""
+    """Terminal User Interface helper class with TEMPEST Level C theming"""
 
-    def __init__(self, use_colors: bool = True):
+    def __init__(self, use_colors: bool = True, tempest_mode: bool = True):
         """
         Initialize TUI helper
 
         Args:
             use_colors: Enable/disable ANSI colors (auto-detect if stdout is TTY)
+            tempest_mode: Enable TEMPEST Level C security markings and warnings
         """
         self.use_colors = use_colors and sys.stdout.isatty()
         self.colors = Colors()
         self.symbols = Symbols()
         self.terminal_width = self._get_terminal_width()
+        self.tempest_mode = tempest_mode
+        self.tempest_level = "C"  # TEMPEST Level C (Uncontrolled but sensitive)
+        self.classification = "CLASSIFIED"  # Security classification
 
     def _get_terminal_width(self) -> int:
         """Get terminal width, default to 80 if not detectable"""
@@ -324,7 +340,7 @@ class TUI:
 
     def banner(self, title: str, subtitle: str = "", width: Optional[int] = None):
         """
-        Print banner with title and optional subtitle
+        Print banner with title and optional subtitle (TEMPEST Level C themed)
 
         Args:
             title: Main title
@@ -333,6 +349,18 @@ class TUI:
         """
         if width is None:
             width = min(self.terminal_width, 80)
+
+        # TEMPEST Level C classification header
+        if self.tempest_mode:
+            tempest_header = f"{self.symbols.RADIATION} TEMPEST LEVEL {self.tempest_level} - {self.classification} {self.symbols.RADIATION}"
+            tempest_pad = (width - len(tempest_header) - 2) // 2
+
+            print()
+            print(self.colorize("=" * width, self.colors.TEMPEST_ORANGE, bold=True))
+            print(self.colorize(" " * tempest_pad + tempest_header +
+                              " " * (width - len(tempest_header) - tempest_pad),
+                              self.colors.TEMPEST_ORANGE, bold=True))
+            print(self.colorize("=" * width, self.colors.TEMPEST_ORANGE, bold=True))
 
         print()
         print(self.colorize("╔" + "═" * (width - 2) + "╗", self.colors.CYAN, bold=True))
@@ -350,6 +378,162 @@ class TUI:
                               self.colors.BLUE))
 
         print(self.colorize("╚" + "═" * (width - 2) + "╝", self.colors.CYAN, bold=True))
+
+        # TEMPEST EMSEC warning footer
+        if self.tempest_mode:
+            print()
+            emsec_warning = f"{self.symbols.EMSEC} EMSEC: Monitor for electromagnetic emanations"
+            print(self.colorize(emsec_warning, self.colors.TEMPEST_AMBER))
+
+        print()
+
+    def tempest_warning(self, message: str):
+        """
+        Display TEMPEST electromagnetic security warning
+
+        Args:
+            message: Warning message
+        """
+        if not self.tempest_mode:
+            self.warning(message)
+            return
+
+        symbol = self.colorize(self.symbols.RADIATION, self.colors.TEMPEST_AMBER)
+        msg = self.colorize(f"TEMPEST: {message}", self.colors.TEMPEST_AMBER, bold=True)
+        print(f"{symbol} {msg}")
+
+    def emsec_alert(self, message: str):
+        """
+        Display critical EMSEC (Electromagnetic Security) alert
+
+        Args:
+            message: Alert message
+        """
+        if not self.tempest_mode:
+            self.critical(message)
+            return
+
+        symbol = self.colorize(self.symbols.ALERT, self.colors.TEMPEST_RED)
+        msg = self.colorize(f"EMSEC ALERT: {message}", self.colors.TEMPEST_RED, bold=True)
+        bg = self.colors.BG_RED
+        print(f"{symbol} {bg}{msg}{self.colors.RESET}")
+
+    def classification_banner(self, width: Optional[int] = None):
+        """
+        Display TEMPEST Level C classification banner
+
+        Args:
+            width: Banner width (auto if None)
+        """
+        if not self.tempest_mode:
+            return
+
+        if width is None:
+            width = min(self.terminal_width, 80)
+
+        classification_text = f"{self.symbols.CLASSIFIED} {self.classification} - TEMPEST LEVEL {self.tempest_level} {self.symbols.CLASSIFIED}"
+        pad = (width - len(classification_text)) // 2
+
+        print()
+        print(self.colorize("━" * width, self.colors.TEMPEST_ORANGE, bold=True))
+        print(self.colorize(" " * pad + classification_text +
+                          " " * (width - len(classification_text) - pad),
+                          self.colors.TEMPEST_ORANGE, bold=True))
+        print(self.colorize("━" * width, self.colors.TEMPEST_ORANGE, bold=True))
+        print()
+
+    def tempest_box(self, title: str, content: list, level: str = "C"):
+        """
+        Display TEMPEST-classified information box
+
+        Args:
+            title: Box title
+            content: List of lines to display
+            level: TEMPEST level (A, B, or C)
+        """
+        # Color based on TEMPEST level
+        if level == "A":
+            color = self.colors.TEMPEST_RED
+            level_text = "LEVEL A - CLASSIFIED"
+        elif level == "B":
+            color = self.colors.TEMPEST_ORANGE
+            level_text = "LEVEL B - RESTRICTED"
+        else:  # Level C
+            color = self.colors.TEMPEST_AMBER
+            level_text = "LEVEL C - CONTROLLED"
+
+        width = min(self.terminal_width - 4, 80)
+
+        # Top classification marking
+        print()
+        class_mark = f"{self.symbols.RADIATION} TEMPEST {level_text} {self.symbols.RADIATION}"
+        class_pad = (width - len(class_mark)) // 2
+        print(self.colorize(" " * class_pad + class_mark, color, bold=True))
+        print()
+
+        # Box top border
+        print(self.colorize("┏" + "━" * (width - 2) + "┓", color, bold=True))
+
+        # Title
+        title_pad = width - len(title) - 4
+        print(self.colorize(f"┃ {title}" + " " * title_pad + "┃", color, bold=True))
+        print(self.colorize("┣" + "━" * (width - 2) + "┫", color))
+
+        # Content
+        for line in content:
+            clean_line = self._strip_ansi(line)
+            pad = width - len(clean_line) - 4
+            print(self.colorize("┃ ", color) + line + " " * pad +
+                  self.colorize(" ┃", color))
+
+        # Bottom border
+        print(self.colorize("┗" + "━" * (width - 2) + "┛", color, bold=True))
+
+        # Bottom classification marking
+        print()
+        print(self.colorize(" " * class_pad + class_mark, color, bold=True))
+        print()
+
+    def opsec_reminder(self, message: str):
+        """
+        Display operational security reminder
+
+        Args:
+            message: OPSEC message
+        """
+        symbol = self.colorize(self.symbols.SHIELD, self.colors.TEMPEST_AMBER)
+        msg = self.colorize(f"OPSEC: {message}", self.colors.TEMPEST_AMBER)
+        print(f"{symbol} {msg}")
+
+    def session_footer(self, width: Optional[int] = None):
+        """
+        Display TEMPEST session classification footer
+
+        Args:
+            width: Footer width (auto if None)
+        """
+        if not self.tempest_mode:
+            return
+
+        if width is None:
+            width = min(self.terminal_width, 80)
+
+        print()
+        print(self.colorize("=" * width, self.colors.TEMPEST_ORANGE, bold=True))
+
+        footer_text = f"{self.symbols.RADIATION} END TEMPEST LEVEL {self.tempest_level} SESSION - {self.classification} {self.symbols.RADIATION}"
+        footer_pad = (width - len(footer_text)) // 2
+
+        print(self.colorize(" " * footer_pad + footer_text +
+                          " " * (width - len(footer_text) - footer_pad),
+                          self.colors.TEMPEST_ORANGE, bold=True))
+
+        # EMSEC reminder
+        emsec_text = f"{self.symbols.EMSEC} Verify electromagnetic shielding active | Secure all emanations"
+        emsec_pad = (width - len(emsec_text)) // 2
+        print(self.colorize(" " * emsec_pad + emsec_text, self.colors.TEMPEST_AMBER))
+
+        print(self.colorize("=" * width, self.colors.TEMPEST_ORANGE, bold=True))
         print()
 
 
@@ -423,11 +607,21 @@ def info(message: str, prefix: str = ""):
 
 
 if __name__ == '__main__':
-    # Demo of TUI features
-    tui = TUI()
+    # Demo of TEMPEST Level C themed TUI features
+    tui = TUI(tempest_mode=True)
 
-    tui.banner("POLYGOTTEM TUI Helper", "Terminal User Interface Demo")
+    tui.banner("POLYGOTTEM TEMPEST Interface", "CLASSIFIED - Electromagnetic Security Demo")
 
+    # TEMPEST-specific warnings
+    tui.section("TEMPEST Level C Security Warnings")
+    tui.tempest_warning("Electromagnetic emanations detected - Activate shielding")
+    tui.emsec_alert("Unshielded CRT display in secure area")
+    tui.opsec_reminder("Verify Faraday cage integrity before operation")
+
+    # Classification banner
+    tui.classification_banner()
+
+    # Standard status messages
     tui.header("Status Messages")
     tui.success("Operation completed successfully")
     tui.error("An error occurred")
@@ -435,32 +629,35 @@ if __name__ == '__main__':
     tui.info("Informational message")
     tui.critical("CRITICAL: This is urgent!")
 
+    # TEMPEST classified box
+    tui.section("TEMPEST Classified Information")
+    tui.tempest_box("OPERATION CHIMERA", [
+        "Exploit Chain: CVE-2025-XXXX → Kernel RCE",
+        "Target Platform: Linux 6.x",
+        "Persistence: systemd service + immutable flag",
+        "C2 Protocol: DNS tunneling over TLS",
+        "EMSEC: Faraday cage required"
+    ], level="C")
+
     tui.section("Lists and Key-Values")
-    tui.list_item("First item")
-    tui.list_item("Second item with sub-items:", level=0)
-    tui.list_item("Sub-item 1", level=1)
-    tui.list_item("Sub-item 2", level=1)
+    tui.list_item("TEMPEST Level C deployment")
+    tui.list_item("Electromagnetic countermeasures:", level=0)
+    tui.list_item("Shielded cables installed", level=1)
+    tui.list_item("RF dampening active", level=1)
 
     print()
-    tui.key_value("CVE ID", "CVE-2023-4863")
-    tui.key_value("Severity", "Critical")
-    tui.key_value("CVSS Score", "8.8")
+    tui.key_value("CVE ID", "CVE-2025-XXXXX")
+    tui.key_value("Classification", "TEMPEST Level C")
+    tui.key_value("EMSEC Status", "ACTIVE")
 
     tui.section("Tables")
-    headers = ["CVE", "Type", "Severity"]
+    headers = ["CVE", "Type", "TEMPEST Level"]
     rows = [
-        ["CVE-2023-4863", "Heap Overflow", "Critical"],
-        ["CVE-2024-10573", "Buffer Overflow", "High"],
-        ["CVE-2023-52356", "Heap Overflow", "High"],
+        ["CVE-2023-4863", "Heap Overflow", "Level C"],
+        ["CVE-2024-10573", "Buffer Overflow", "Level B"],
+        ["CVE-2023-52356", "Heap Overflow", "Level A"],
     ]
     tui.table(headers, rows)
-
-    tui.section("Boxes")
-    tui.box("Important Information", [
-        "This is a boxed message",
-        "Multiple lines supported",
-        "With automatic width handling"
-    ])
 
     tui.section("Progress Bar")
     for i in range(101):
@@ -469,3 +666,6 @@ if __name__ == '__main__':
 
     print()
     tui.success("Demo complete!")
+
+    # Session footer with TEMPEST markings
+    tui.session_footer()
