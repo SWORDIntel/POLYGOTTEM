@@ -232,7 +232,8 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
         Allows user to configure DynDNS and No-IP as fallback services
         if DuckDNS fails during target registration.
 
-        Credentials are prompted for (not hardcoded) for security.
+        DEV MODE: Pre-filled with default dev credentials for convenience.
+        (Change defaults in duckdns_integration.py before production)
         """
         self.tui.section("🌐 DNS Fallback Services Configuration")
         self.tui.info("Configure fallback DNS services for additional redundancy")
@@ -242,17 +243,19 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
         print()
 
         # Ask about DynDNS
-        if self.menu.confirm("Configure DynDNS fallback?", default=False):
+        if self.menu.confirm("Configure DynDNS fallback?", default=True):
             try:
                 dyndns_domain = self.menu.prompt_input(
                     "DynDNS domain",
-                    default="example.dyndns.org"
+                    default="all.ddnskey.com"
                 )
                 dyndns_user = self.menu.prompt_input(
-                    "DynDNS username"
+                    "DynDNS username",
+                    default="47157"
                 )
                 dyndns_pass = self.menu.prompt_input(
-                    "DynDNS password"
+                    "DynDNS password",
+                    default="APT41RULES"
                 )
 
                 self.dyndns_config = {
@@ -268,17 +271,19 @@ NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
                 self.tui.error(f"Failed to configure DynDNS: {e}")
 
         # Ask about No-IP
-        if self.menu.confirm("Configure No-IP fallback?", default=False):
+        if self.menu.confirm("Configure No-IP fallback?", default=True):
             try:
                 noip_domain = self.menu.prompt_input(
                     "No-IP domain",
-                    default="example.no-ip.org"
+                    default="all.ddnskey.com"
                 )
                 noip_user = self.menu.prompt_input(
-                    "No-IP username"
+                    "No-IP username",
+                    default="3btmnv1"
                 )
                 noip_pass = self.menu.prompt_input(
-                    "No-IP password"
+                    "No-IP password",
+                    default="vsUre6qPUfWy"
                 )
 
                 self.noip_config = {

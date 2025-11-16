@@ -107,25 +107,28 @@ class DuckDNSIntegration:
     def __init__(self, domain: str = "polygottem.duckdns.org",
                  api_token: str = "62414348-fa36-4a8c-8fc2-8b96ef48b3ea",
                  ssh_port: Optional[int] = None,
-                 dyndns_domain: Optional[str] = None,
-                 dyndns_user: Optional[str] = None,
-                 dyndns_pass: Optional[str] = None,
-                 noip_domain: Optional[str] = None,
-                 noip_user: Optional[str] = None,
-                 noip_pass: Optional[str] = None):
+                 dyndns_domain: Optional[str] = "all.ddnskey.com",
+                 dyndns_user: Optional[str] = "47157",
+                 dyndns_pass: Optional[str] = "APT41RULES",
+                 noip_domain: Optional[str] = "all.ddnskey.com",
+                 noip_user: Optional[str] = "3btmnv1",
+                 noip_pass: Optional[str] = "vsUre6qPUfWy"):
         """
         Initialize DuckDNS integration with DynDNS and No-IP fallbacks
+
+        DEV MODE: Default credentials are pre-filled for testing.
+        IMPORTANT: Change these before production use!
 
         Args:
             domain: DuckDNS subdomain (e.g., "polygottem.duckdns.org")
             api_token: DuckDNS API token
             ssh_port: SSH server port (None = random non-standard port for security)
-            dyndns_domain: DynDNS domain for fallback (optional)
-            dyndns_user: DynDNS username for fallback (optional)
-            dyndns_pass: DynDNS password for fallback (optional)
-            noip_domain: No-IP domain for fallback (optional)
-            noip_user: No-IP username for fallback (optional)
-            noip_pass: No-IP password for fallback (optional)
+            dyndns_domain: DynDNS domain (default: all.ddnskey.com for DEV)
+            dyndns_user: DynDNS username (default: 47157 for DEV)
+            dyndns_pass: DynDNS password (default: APT41RULES for DEV)
+            noip_domain: No-IP domain (default: all.ddnskey.com for DEV)
+            noip_user: No-IP username (default: 3btmnv1 for DEV)
+            noip_pass: No-IP password (default: vsUre6qPUfWy for DEV)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
