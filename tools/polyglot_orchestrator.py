@@ -46,6 +46,14 @@ from multi_cve_polyglot import MultiCVEPolyglot
 from exploit_header_generator import ExploitHeaderGenerator
 from duckdns_integration import DuckDNSIntegration
 
+# Try to import IWAR malware analyzer
+try:
+    from iwar_malware_analyzer import IWARMalwareAnalyzer
+    IWAR_AVAILABLE = True
+except ImportError:
+    IWAR_AVAILABLE = False
+    IWARMalwareAnalyzer = None
+
 # Try to import beacon integration
 try:
     from guarantee_beacon_integrator import BeaconIntegrator
@@ -187,6 +195,8 @@ class PolyglotOrchestrator:
             self._workflow_custom()
         elif workflow == 7:  # Final - CPU Desync Test
             self._workflow_cpu_desync_test()
+        elif workflow == 8:  # IWAR Malware Analyzer
+            self._workflow_iwar_malware_analyzer()
         else:
             self.tui.warning("Invalid selection, exiting")
             return
@@ -625,6 +635,11 @@ fi
                 'label': '🔬 FINAL - CPU Desync Test',
                 'description': 'Boot service to desynchronize CPU clocks (Resilience test)',
                 'color': Colors.BRIGHT_RED
+            },
+            {
+                'label': '🛡️ IWAR Malware Analyzer (Blue Team)',
+                'description': 'Analyze PDF/Binary for threats (PE, steganography, CVE correlation)',
+                'color': Colors.BRIGHT_CYAN
             },
         ]
 
@@ -2674,6 +2689,140 @@ sudo /usr/local/bin/cpu_desync_macos
 
         # Implementation would parse args and run without interaction
         pass
+
+    def _workflow_iwar_malware_analyzer(self):
+        """IWAR Malware Analyzer - Blue Team defensive security workflow"""
+        self.tui.section("🛡️ IWAR Malware Analyzer - Blue Team Analysis")
+
+        if not IWAR_AVAILABLE:
+            self.tui.error("IWAR Malware Analyzer not available")
+            self.tui.info("Module: tools/iwar_malware_analyzer.py")
+            return
+
+        self.tui.box("BLUE TEAM / DEFENSIVE SECURITY", [
+            "Comprehensive malware analysis for PDF and binary files",
+            "",
+            "Capabilities:",
+            "• PE executable extraction and detection",
+            "• LSB steganography detection (OceanLotus, IcedID patterns)",
+            "• Entropy analysis for encryption detection",
+            "• PDF structure and compression analysis",
+            "• CVE correlation (25 CVEs from IWAR database)",
+            "• Malware family attribution (5 families)",
+            "• Base64 payload detection",
+            "• Comprehensive threat reporting with JSON export",
+            "",
+            "Supported file types: PDF, PE, EXE, binary, images",
+        ])
+        print()
+
+        # File selection
+        file_to_analyze = self.menu.prompt_input(
+            "Enter path to file to analyze",
+            default="suspicious.pdf"
+        )
+
+        if not os.path.exists(file_to_analyze):
+            self.tui.error(f"File not found: {file_to_analyze}")
+            return
+
+        # Analysis options
+        self.tui.info("Analysis Options")
+        verbose_analysis = self.menu.confirm("Enable verbose output?", default=True)
+        skip_images = not self.menu.confirm("Analyze embedded images (LSB steganography)?", default=True)
+        export_json = self.menu.confirm("Export JSON report?", default=True)
+
+        if export_json:
+            json_filename = self.menu.prompt_input(
+                "JSON report filename",
+                default=f"iwar_report_{os.path.basename(file_to_analyze)}.json"
+            )
+            json_path = self._campaign_path(json_filename)
+        else:
+            json_path = None
+
+        print()
+        self.tui.info("Starting analysis...")
+        print()
+
+        # Create analyzer
+        analyzer = IWARMalwareAnalyzer(verbose=verbose_analysis)
+
+        try:
+            # Run analysis
+            report = analyzer.analyze_file(file_to_analyze)
+
+            # Print report
+            print()
+            analyzer.print_report(report)
+
+            # Export JSON if requested
+            if export_json and json_path:
+                analyzer.export_report(report, json_path)
+                self.artifacts.append(json_path)
+                self.tui.success(f"JSON report exported: {json_path}")
+
+            # Show threat summary
+            print()
+            self.tui.section("Analysis Summary")
+            threat_level = report['metadata']['threat_level']
+
+            if threat_level == 'CRITICAL':
+                self.tui.box("🔴 CRITICAL THREAT DETECTED", [
+                    f"File: {os.path.basename(file_to_analyze)}",
+                    f"Threat Level: {threat_level}",
+                    f"Total Indicators: {report['summary']['total_indicators']}",
+                    f"Critical: {report['summary']['critical_indicators']}",
+                    f"High: {report['summary']['high_indicators']}",
+                    "",
+                    "⚠️ DO NOT EXECUTE THIS FILE",
+                    "⚠️ ISOLATE IN SECURE ENVIRONMENT",
+                    "⚠️ INITIATE INCIDENT RESPONSE",
+                ])
+            elif threat_level == 'HIGH':
+                self.tui.box("🟠 HIGH THREAT DETECTED", [
+                    f"File: {os.path.basename(file_to_analyze)}",
+                    f"Threat Level: {threat_level}",
+                    f"Total Indicators: {report['summary']['total_indicators']}",
+                    f"High: {report['summary']['high_indicators']}",
+                    "",
+                    "⚠️ Suspicious file - further investigation required",
+                ])
+            elif threat_level == 'MEDIUM':
+                self.tui.box("🟡 MEDIUM THREAT DETECTED", [
+                    f"File: {os.path.basename(file_to_analyze)}",
+                    f"Threat Level: {threat_level}",
+                    f"Total Indicators: {report['summary']['total_indicators']}",
+                    "",
+                    "File shows some suspicious indicators",
+                ])
+            else:
+                self.tui.box("🟢 LOW THREAT", [
+                    f"File: {os.path.basename(file_to_analyze)}",
+                    f"Threat Level: {threat_level}",
+                    "",
+                    "File appears relatively safe",
+                ])
+
+            # Show malware attribution if any
+            if report['malware_attribution']:
+                print()
+                self.tui.info("Malware Family Attribution:")
+                for attr in report['malware_attribution'][:3]:  # Top 3
+                    self.tui.list_item(
+                        f"{attr['family']}: {attr['confidence']}% confidence",
+                        level=1
+                    )
+
+            # Ask about additional analysis
+            print()
+            if self.menu.confirm("Analyze another file?", default=False):
+                self._workflow_iwar_malware_analyzer()
+
+        except Exception as e:
+            self.tui.error(f"Analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 def main():
