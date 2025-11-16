@@ -500,6 +500,70 @@ class CVEChainAnalyzer:
             file_format='network'
         )
 
+        db['CVE-2023-21707'] = CVEMetadata(
+            cve_id='CVE-2023-21707',
+            name='Exchange ProxyLogon Variant',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.1,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='ProxyLogon variant for Exchange Server RCE (network-based)',
+            file_format='network'
+        )
+
+        db['CVE-2024-26424'] = CVEMetadata(
+            cve_id='CVE-2024-26424',
+            name='Windows Kernel IOCTL Handler Overflow',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.HIGH,
+            cvss_score=7.5,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Kernel IOCTL handler overflow for SYSTEM privilege escalation',
+            file_format='exe'
+        )
+
+        db['CVE-2024-21710'] = CVEMetadata(
+            cve_id='CVE-2024-21710',
+            name='IIS Request Handler Memory Corruption',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.0,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='IIS HTTP request handler memory corruption for RCE',
+            file_format='network'
+        )
+
+        db['CVE-2024-33019'] = CVEMetadata(
+            cve_id='CVE-2024-33019',
+            name='Kerberos PA-SOCKS5 Authentication Bypass',
+            exploit_type=ExploitType.AUTH_BYPASS,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=8.8,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Kerberos PA-SOCKS5 authentication bypass for AD domain access',
+            file_format='network'
+        )
+
         # ===== Linux CVEs (2025) =====
         db['CVE-2025-0927'] = CVEMetadata(
             cve_id='CVE-2025-0927',

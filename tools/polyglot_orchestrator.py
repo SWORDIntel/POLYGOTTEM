@@ -2163,7 +2163,7 @@ sudo /usr/local/bin/cpu_desync_macos
         """Select target platform"""
         platform_options = [
             {'label': 'macOS', 'description': '7 CVEs (ImageIO, Kernel)'},
-            {'label': 'Windows', 'description': '3 CVEs (Kernel race, SPNEGO, GDI+)'},
+            {'label': 'Windows', 'description': '7 CVEs (Exchange, IIS, Kerberos, IOCTL, SPNEGO, GDI+)'},
             {'label': 'Linux', 'description': '2 CVEs (HFS+, Kernel OOB)'},
             {'label': 'iOS', 'description': '5 CVEs (CoreAudio, WebKit)'},
             {'label': 'Android', 'description': '10 CVEs (Intent, DNG, GPU)'},
@@ -2705,9 +2705,9 @@ Examples:
     --output polyglot.dat
 
 CVE Coverage:
-  - 45 CVE implementations (27 from 2025, 18 legacy)
+  - 49 CVE implementations (31 from 2025, 18 legacy)
   - macOS: 7 CVEs (ImageIO zero-day, Kernel buffer overflow)
-  - Windows: 3 CVEs (Kernel race, SPNEGO RCE, GDI+)
+  - Windows: 7 CVEs (Exchange ProxyLogon, IIS RCE, Kerberos bypass, Kernel IOCTL, SPNEGO, GDI+)
   - Linux: 2 CVEs (HFS+ heap overflow, Kernel OOB write)
   - iOS: 5 CVEs (CoreAudio zero-click, WebKit sandbox escape)
   - Android: 10 CVEs (LANDFALL spyware, Qualcomm GPU, MediaTek)
