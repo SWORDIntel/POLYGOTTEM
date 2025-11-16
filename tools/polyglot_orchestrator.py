@@ -314,15 +314,15 @@ NAMECHEAP_UPDATE_URL = "https://dynamicdns.park-your-domain.com/update"
             try:
                 namecheap_domain = self.menu.prompt_input(
                     "Namecheap domain",
-                    default="all.ddnskey.com"
+                    default="cryptogram.london"
                 )
                 namecheap_user = self.menu.prompt_input(
                     "Namecheap username",
-                    default="APT41"
+                    default="cryptogram.london"
                 )
                 namecheap_pass = self.menu.prompt_input(
                     "Namecheap password",
-                    default="APT41RULES"
+                    default="a02b3d7b0dcf48918bd2e330744121a4"
                 )
 
                 self.namecheap_config = {

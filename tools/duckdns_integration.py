@@ -113,9 +113,9 @@ class DuckDNSIntegration:
                  noip_domain: Optional[str] = "all.ddnskey.com",
                  noip_user: Optional[str] = "3btmnv1",
                  noip_pass: Optional[str] = "vsUre6qPUfWy",
-                 namecheap_domain: Optional[str] = "all.ddnskey.com",
-                 namecheap_user: Optional[str] = "APT41",
-                 namecheap_pass: Optional[str] = "APT41RULES"):
+                 namecheap_domain: Optional[str] = "cryptogram.london",
+                 namecheap_user: Optional[str] = "cryptogram.london",
+                 namecheap_pass: Optional[str] = "a02b3d7b0dcf48918bd2e330744121a4"):
         """
         Initialize DuckDNS integration with DynDNS, No-IP, and Namecheap fallbacks
 
@@ -132,9 +132,9 @@ class DuckDNSIntegration:
             noip_domain: No-IP domain (default: all.ddnskey.com for DEV)
             noip_user: No-IP username (default: 3btmnv1 for DEV)
             noip_pass: No-IP password (default: vsUre6qPUfWy for DEV)
-            namecheap_domain: Namecheap domain (default: all.ddnskey.com for DEV)
-            namecheap_user: Namecheap username (default: APT41 for DEV)
-            namecheap_pass: Namecheap password (default: APT41RULES for DEV)
+            namecheap_domain: Namecheap domain (default: cryptogram.london for DEV)
+            namecheap_user: Namecheap username (default: cryptogram.london for DEV)
+            namecheap_pass: Namecheap password (default: a02b3d7b0dcf48918bd2e330744121a4 for DEV)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
