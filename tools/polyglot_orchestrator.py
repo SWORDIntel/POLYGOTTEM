@@ -318,7 +318,7 @@ NAMECHEAP_UPDATE_URL = "https://dynamicdns.park-your-domain.com/update"
                 )
                 namecheap_user = self.menu.prompt_input(
                     "Namecheap username",
-                    default="cryptogram.london"
+                    default="SWORDIntel"
                 )
                 namecheap_pass = self.menu.prompt_input(
                     "Namecheap password",
