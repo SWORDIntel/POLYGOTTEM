@@ -364,6 +364,29 @@ class InteractiveMenu:
                 except ValueError:
                     self.tui.error("Invalid input")
 
+    def show_menu(self,
+                  options: List[str],
+                  title: str,
+                  default: Optional[int] = None,
+                  allow_cancel: bool = True) -> Optional[int]:
+        """
+        Simple single-select menu for a list of string options
+
+        Args:
+            options: List of string options to display
+            title: Menu title
+            default: Default selected index (0-based)
+            allow_cancel: Allow canceling without selection
+
+        Returns:
+            Selected option index (0-based), or None if canceled
+        """
+        # Convert list of strings to dictionary format required by single_select()
+        option_dicts = [{'label': opt} for opt in options]
+
+        # Use single_select() to handle the actual menu display
+        return self.single_select(title, option_dicts, default=default, allow_cancel=allow_cancel)
+
     def confirm(self, message: str, default: bool = False) -> bool:
         """
         Yes/No confirmation prompt
