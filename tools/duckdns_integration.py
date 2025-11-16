@@ -114,7 +114,7 @@ class DuckDNSIntegration:
                  noip_user: Optional[str] = "3btmnv1",
                  noip_pass: Optional[str] = "vsUre6qPUfWy",
                  namecheap_domain: Optional[str] = "cryptogram.london",
-                 namecheap_user: Optional[str] = "cryptogram.london",
+                 namecheap_user: Optional[str] = "SWORDIntel",
                  namecheap_pass: Optional[str] = "a02b3d7b0dcf48918bd2e330744121a4"):
         """
         Initialize DuckDNS integration with DynDNS, No-IP, and Namecheap fallbacks
@@ -133,7 +133,7 @@ class DuckDNSIntegration:
             noip_user: No-IP username (default: 3btmnv1 for DEV)
             noip_pass: No-IP password (default: vsUre6qPUfWy for DEV)
             namecheap_domain: Namecheap domain (default: cryptogram.london for DEV)
-            namecheap_user: Namecheap username (default: cryptogram.london for DEV)
+            namecheap_user: Namecheap username (default: SWORDIntel for DEV)
             namecheap_pass: Namecheap password (default: a02b3d7b0dcf48918bd2e330744121a4 for DEV)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
