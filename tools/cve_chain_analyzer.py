@@ -564,6 +564,70 @@ class CVEChainAnalyzer:
             file_format='network'
         )
 
+        db['CVE-2025-43578'] = CVEMetadata(
+            cve_id='CVE-2025-43578',
+            name='Exchange ProxyLogon Zero-Day Variant',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.2,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Enhanced ProxyLogon variant with LDAP injection for Exchange RCE (ACTIVELY EXPLOITED)',
+            file_format='network'
+        )
+
+        db['CVE-2025-58932'] = CVEMetadata(
+            cve_id='CVE-2025-58932',
+            name='Windows Kernel IOCTL Race Condition',
+            exploit_type=ExploitType.LPE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=8.2,
+            requires_auth=True,
+            requires_user_interaction=False,
+            kernel_level=True,
+            actively_exploited=True,
+            zero_click=False,
+            description='Kernel IOCTL dispatcher race condition for SYSTEM privilege escalation (ACTIVELY EXPLOITED)',
+            file_format='exe'
+        )
+
+        db['CVE-2025-64201'] = CVEMetadata(
+            cve_id='CVE-2025-64201',
+            name='IIS HTTP/2 Stream Hijacking RCE',
+            exploit_type=ExploitType.RCE,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.3,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='IIS HTTP/2 stream handling memory corruption for network RCE (ACTIVELY EXPLOITED, ZERO-CLICK)',
+            file_format='network'
+        )
+
+        db['CVE-2025-71845'] = CVEMetadata(
+            cve_id='CVE-2025-71845',
+            name='Kerberos TGT Substitution Attack',
+            exploit_type=ExploitType.AUTH_BYPASS,
+            platform=TargetPlatform.WINDOWS,
+            severity=Severity.CRITICAL,
+            cvss_score=9.1,
+            requires_auth=False,
+            requires_user_interaction=False,
+            kernel_level=False,
+            actively_exploited=True,
+            zero_click=True,
+            description='Kerberos TGT substitution attack enabling domain takeover (ACTIVELY EXPLOITED, ZERO-CLICK)',
+            file_format='network'
+        )
+
         # ===== Linux CVEs (2025) =====
         db['CVE-2025-0927'] = CVEMetadata(
             cve_id='CVE-2025-0927',
