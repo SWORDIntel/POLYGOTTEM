@@ -141,6 +141,15 @@ class PolygottemFramework:
                     "APT-41 TTP replication",
                     "Real-world attack chain analysis",
                     "Defensive research applications"
+                ]),
+                ("BLUE TEAM / DEFENSIVE", [
+                    "IWAR Malware Analyzer (PDF/Binary threat analysis)",
+                    "PE executable extraction and detection",
+                    "LSB steganography detection (OceanLotus, IcedID patterns)",
+                    "Entropy analysis for encryption detection",
+                    "CVE correlation (25 CVEs from IWAR database)",
+                    "Malware family attribution (5 families)",
+                    "Comprehensive threat reporting (JSON export)"
                 ])
             ]
 
@@ -374,11 +383,12 @@ Inspired by Vault7 (CIA), Shadow Brokers (NSA), APT-41 (MSS)
 
 COMMANDS:
 
-  exploit     Generate single CVE exploit payload
-  polyglot    Generate multi-CVE polyglot file
-  analyze     Analyze CVE exploit chains for target platform
-  list        List available CVEs, platforms, or polyglot types
-  interactive Launch interactive TUI orchestrator
+  exploit         Generate single CVE exploit payload
+  polyglot        Generate multi-CVE polyglot file
+  analyze         Analyze CVE exploit chains for target platform
+  analyze-malware IWAR Malware Analyzer (Blue Team - PDF/Binary analysis)
+  list            List available CVEs, platforms, or polyglot types
+  interactive     Launch interactive TUI orchestrator
 
 EXAMPLES:
 
@@ -396,6 +406,9 @@ EXAMPLES:
 
   # Interactive mode with TUI
   %(prog)s interactive
+
+  # Analyze malware (Blue Team - defensive security)
+  %(prog)s analyze-malware suspicious.pdf -o report.json -v
 
 ═══════════════════════════════════════════════════════════════════════
 
@@ -459,6 +472,14 @@ POLYGLOT TYPES: apt41, image, audio, mega, custom
     # Interactive command
     interactive_parser = subparsers.add_parser('interactive',
                                               help='Launch interactive TUI')
+
+    # IWAR Malware Analyzer command (Blue Team)
+    iwar_parser = subparsers.add_parser('analyze-malware',
+                                       help='IWAR Malware Analyzer (Blue Team)')
+    iwar_parser.add_argument('file', help='File to analyze (PDF, binary, etc.)')
+    iwar_parser.add_argument('-o', '--output', help='Output JSON report file')
+    iwar_parser.add_argument('--no-images', action='store_true',
+                           help='Skip image steganography analysis')
 
     # C Methods command
     c_methods_parser = subparsers.add_parser('c-methods',
@@ -559,6 +580,55 @@ POLYGLOT TYPES: apt41, image, audio, mega, custom
             return 0
         except ImportError as e:
             print(f"[!] Error: Interactive mode requires polyglot_orchestrator.py: {e}")
+            return 1
+
+    elif args.command == 'analyze-malware':
+        # IWAR Malware Analyzer (Blue Team)
+        try:
+            from iwar_malware_analyzer import IWARMalwareAnalyzer
+
+            if framework.tui:
+                framework.tui.section("IWAR Malware Analyzer - Blue Team Analysis")
+                print()
+                framework.tui.info(f"Analyzing: {args.file}")
+                print()
+            else:
+                print(f"\n[*] IWAR Malware Analyzer")
+                print(f"[*] Analyzing: {args.file}")
+
+            analyzer = IWARMalwareAnalyzer(verbose=args.verbose)
+            report = analyzer.analyze_file(args.file)
+
+            # Print report
+            analyzer.print_report(report)
+
+            # Export if requested
+            if args.output:
+                analyzer.export_report(report, args.output)
+                if framework.tui:
+                    framework.tui.success(f"Report exported: {args.output}")
+                else:
+                    print(f"[+] Report exported: {args.output}")
+
+            # Show summary
+            framework.show_operation_summary()
+
+            # Return code based on threat level
+            threat_level = report['metadata']['threat_level']
+            if threat_level == 'CRITICAL':
+                return 2
+            elif threat_level == 'HIGH':
+                return 1
+            else:
+                return 0
+
+        except ImportError as e:
+            print(f"[!] Error: IWAR analyzer not available: {e}")
+            return 1
+        except Exception as e:
+            print(f"[!] Analysis error: {e}")
+            import traceback
+            traceback.print_exc()
             return 1
 
     elif args.command == 'c-methods':
